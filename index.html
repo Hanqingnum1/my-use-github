@@ -7,60 +7,95 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 主页界面 -->
-        <div id="home-page">
-        <h1>我的物品库</h1>
-        <!-- 点击“物品”直接触发新增物品的表单 -->
-        <button class="main-btn" onclick="showAddForm()">物品</button>
-        <button class="main-btn" onclick="showDistribution()">物品分布</button>
-        <button class="main-btn">全部物品</button>
-    </div>
-
-    <!-- 增加物品的界面（先隐藏，点击按钮才显示） -->
-    <div id="add-form" style="display: none;">
-        <h2>增加物品</h2>
+    <!-- 主内容区，底部留出导航栏的位置 -->
+    <div id="main-content" style="padding-bottom: 70px;">
         
-        <label>上传图片（支持拍照/相册）：</label>
-        <input type="file" accept="image/*" capture="camera">
-        <br><br>
-
-        <label>物品分类：</label>
-        <select id="category" onchange="toggleWarranty()">
-            <option value="">请选择</option>
-            <option value="家电">家电</option>
-            <option value="电子产品">电子产品</option>
-            <option value="食品">食品</option>
-            <option value="护肤品">护肤品</option>
-            <option value="化妆品">化妆品</option>
-            <option value="生活用品">生活用品</option>
-            <option value="书本">书本</option>
-            <option value="学习资料">学习资料</option>
-            <option value="手办">手办</option>
-        </select>
-        <br><br>
-
-        <label>物品名称：</label>
-        <input type="text" placeholder="例如：吹风机">
-        <br><br>
-
-        <label>物品价格：</label>
-        <input type="number" placeholder="例如：299">
-        <br><br>
-
-        <label>物品保质期：</label>
-        <input type="date">
-        <br><br>
-
-        <!-- 质保期（默认隐藏，选家电/电子产品才显示） -->
-        <div id="warranty-box" style="display: none;">
-            <label>物品质保期：</label>
-            <input type="date">
-            <br><br>
+        <!-- 1. 主页界面 -->
+        <div id="home-page">
+            <h1>我的物品库</h1>
+            <button class="main-btn" onclick="showAddForm()">增加物品</button>
+            <button class="main-btn" onclick="showDistribution()">物品分布</button>
         </div>
 
-        <button onclick="saveItem()">保存物品</button>
-        <button onclick="goHome()">返回主页</button>
+        <!-- 2. 增加物品界面 -->
+        <div id="add-form" style="display: none;">
+            <h2>增加物品</h2>
+            <label>上传图片（支持拍照/相册）：</label>
+            <input type="file" accept="image/*">
+            <br><br>
+
+            <label>物品分类：</label>
+            <select id="category" onchange="toggleWarranty()">
+                <option value="">请选择</option>
+                <option value="家电">家电</option>
+                <option value="电子产品">电子产品</option>
+                <option value="食品">食品</option>
+                <option value="护肤品">护肤品</option>
+                <option value="化妆品">化妆品</option>
+                <option value="生活用品">生活用品</option>
+                <option value="书本">书本</option>
+                <option value="学习资料">学习资料</option>
+                <option value="手办">手办</option>
+            </select>
+            <br><br>
+
+            <label>物品名称：</label>
+            <input type="text" placeholder="例如：吹风机">
+            <br><br>
+
+            <label>物品价格：</label>
+            <input type="number" placeholder="例如：299">
+            <br><br>
+            
+             <!-- 新增：购买时间 -->
+            <label>购买时间：</label>
+            <input type="text" id="purchase-date" readonly placeholder="点击选择购买时间" onclick="openDatePicker('purchase-date')">
+            <br><br>
+
+            <label>物品保质期：</label>
+            <input type="date">
+            <br><br>
+
+            <!-- 质保期 -->
+            <div id="warranty-box" style="display: none;">
+                <label>物品质保期：</label>
+                <input type="date">
+                <br><br>
+            </div>
+
+            <button class="main-btn" onclick="saveItem()">保存物品</button>
+            <button class="main-btn" onclick="switchTab('home')">返回主页</button>
+        </div>
+
+        <!-- 3. 物品分布界面 -->
+        <div id="distribution-page" style="display: none;">
+            <h2>物品分布</h2>
+            <div id="chart-container" style="width: 100%; height: 300px; background: white; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; color: #999;">
+                数据统计区域（下一步接入饼图）
+            </div>
+            <button class="main-btn" onclick="switchTab('home')">返回主页</button>
+        </div>
+
+        <!-- 4. 全部物品界面（占位） -->
+        <div id="all-items-page" style="display: none;">
+            <h2>全部物品</h2>
+            <p style="color: #999; text-align: center; margin-top: 50px;">暂无物品数据（等待保存功能开发）</p>
+        </div>
+
+        <!-- 5. 随礼记录界面（占位） -->
+        <div id="gift-record-page" style="display: none;">
+            <h2>随礼记录</h2>
+            <p style="color: #999; text-align: center; margin-top: 50px;">随礼记录功能开发中...</p>
+        </div>
+
     </div>
+
+    <!-- 底部导航栏 -->
+    <nav class="tab-bar">
+        <div class="tab-item active" id="tab-home" onclick="switchTab('home')">主页</div>
+        <div class="tab-item" id="tab-all-items" onclick="switchTab('all-items')">全部物品</div>
+        <div class="tab-item" id="tab-gift-record" onclick="switchTab('gift-record')">随礼记录</div>
+    </nav>
 
     <script src="app.js"></script>
 </body>

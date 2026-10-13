@@ -31,3 +31,39 @@ input, select {
     border-radius: 4px;
     box-sizing: border-box;
 }
+/* 追加到 style.css 末尾 */
+body {
+    padding-bottom: 70px; /* 避免内容被底部导航栏遮挡 */
+}
+
+/* 底部导航栏 */
+.tab-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    background-color: #ffffff;
+    border-top: 1px solid #e0e0e0;
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+}
+
+.tab-item {
+    flex: 1;
+    text-align: center;
+    padding: 15px 0;
+    font-size: 14px;
+    color: #777;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-item.active {
+    color: #007bff;
+    font-weight: bold;
+}
+
+/* 隐藏页面的通用类 */
+.page-hidden {
+    display: none !important;
+}

@@ -2,118 +2,160 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>我的物品归档</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 主内容区，底部留出导航栏的位置 -->
-    <div id="main-content" style="padding-bottom: 70px;">
+    
+    <!-- 顶部标题栏 -->
+    <header class="app-header">
+        <div class="logo">P</div>
+        <h1>我的物品库</h1>
+    </header>
+
+    <!-- 主内容区 -->
+    <div id="main-content">
         
         <!-- 1. 主页界面 -->
         <div id="home-page">
-            <h1>我的物品库</h1>
-            <button class="main-btn" onclick="showAddForm()">增加物品</button>
-            <button class="main-btn" onclick="showDistribution()">物品分布</button>
+            <!-- 快捷操作卡片 -->
+            <div class="card">
+                <div class="quick-actions">
+                    <div class="action-item" onclick="showAddForm()">
+                        <div class="action-icon" style="background:#ffece5; color:#ff7e5f;">+</div>
+                        <span>增加物品</span>
+                    </div>
+                    <div class="action-item" onclick="showDistribution()">
+                        <div class="action-icon" style="background:#e5f4ff; color:#3b82f6;">📊</div>
+                        <span>物品分布</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分布预览卡片（主页面展示用） -->
+            <div class="card">
+                <h3>物品概览</h3>
+                <p style="color: #999; font-size: 14px;">点击下方“物品分布”查看详细扇形图</p>
+            </div>
         </div>
 
         <!-- 2. 增加物品界面 -->
         <div id="add-form" style="display: none;">
-            <h2>增加物品</h2>
-            <label>上传图片（支持拍照/相册）：</label>
-            <input type="file" accept="image/*">
-            <br><br>
+            <div class="card">
+                <h2>增加物品</h2>
+                <div class="form-group">
+                    <label>上传图片（支持拍照/相册）：</label>
+                    <input type="file" accept="image/*">
+                </div>
 
-            <label>物品分类：</label>
-            <select id="category" onchange="toggleWarranty()">
-                <option value="">请选择</option>
-                <option value="家电">家电</option>
-                <option value="电子产品">电子产品</option>
-                <option value="食品">食品</option>
-                <option value="护肤品">护肤品</option>
-                <option value="化妆品">化妆品</option>
-                <option value="生活用品">生活用品</option>
-                <option value="书本">书本</option>
-                <option value="学习资料">学习资料</option>
-                <option value="手办">手办</option>
-            </select>
-            <br><br>
+                <div class="form-group">
+                    <label>物品分类：</label>
+                    <select id="category" onchange="toggleWarranty()">
+                        <option value="">请选择</option>
+                        <option value="家电">家电</option>
+                        <option value="电子产品">电子产品</option>
+                        <option value="食品">食品</option>
+                        <option value="护肤品">护肤品</option>
+                        <option value="化妆品">化妆品</option>
+                        <option value="生活用品">生活用品</option>
+                        <option value="书本">书本</option>
+                        <option value="学习资料">学习资料</option>
+                        <option value="手办">手办</option>
+                    </select>
+                </div>
 
-            <label>物品名称：</label>
-            <input type="text" placeholder="例如：吹风机">
-            <br><br>
+                <div class="form-group">
+                    <label>物品名称：</label>
+                    <input type="text" placeholder="例如：吹风机">
+                </div>
 
-            <label>物品价格：</label>
-            <input type="number" placeholder="例如：299">
-            <br><br>
+                <div class="form-group">
+                    <label>物品价格：</label>
+                    <input type="number" placeholder="例如：299">
+                </div>
 
-            <!-- 新增：购买时间 -->
-            <label>购买时间：</label>
-            <input type="text" id="purchase-date" readonly placeholder="点击选择购买时间" onclick="openDatePicker('purchase-date')">
-            <br><br>
+                <!-- 核心修改：加上 inputmode="none" 和 onfocus="this.blur()" 解决鸿蒙系统不生效问题 -->
+                <div class="form-group">
+                    <label>购买时间：</label>
+                    <input type="text" id="purchase-date" readonly inputmode="none" placeholder="点击选择购买时间" onclick="openDatePicker('purchase-date')" onfocus="this.blur()">
+                </div>
 
-            <!-- 保质期 -->
-            <label>物品保质期：</label>
-            <input type="text" id="expiry-date" readonly placeholder="点击选择保质期" onclick="openDatePicker('expiry-date')">
-            <br><br>
+                <div class="form-group">
+                    <label>物品保质期：</label>
+                    <input type="text" id="expiry-date" readonly inputmode="none" placeholder="点击选择保质期" onclick="openDatePicker('expiry-date')" onfocus="this.blur()">
+                </div>
 
-            <!-- 质保期 -->
-            <div id="warranty-box" style="display: none;">
-                <label>物品质保期：</label>
-                <input type="text" id="warranty-date" readonly placeholder="点击选择质保期" onclick="openDatePicker('warranty-date')">
-                <br><br>
+                <div id="warranty-box" style="display: none;" class="form-group">
+                    <label>物品质保期：</label>
+                    <input type="text" id="warranty-date" readonly inputmode="none" placeholder="点击选择质保期" onclick="openDatePicker('warranty-date')" onfocus="this.blur()">
+                </div>
+
+                <button class="main-btn" onclick="saveItem()">保存物品</button>
+                <button class="main-btn secondary" onclick="switchTab('home')">返回主页</button>
             </div>
-
-            <button class="main-btn" onclick="saveItem()">保存物品</button>
-            <button class="main-btn" onclick="switchTab('home')">返回主页</button>
         </div>
 
         <!-- 3. 物品分布界面 -->
         <div id="distribution-page" style="display: none;">
-            <h2>物品分布</h2>
-            <div id="chart-container" style="width: 100%; height: 300px; background: white; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; color: #999;">
-                数据统计区域（下一步接入饼图）
+            <div class="card">
+                <h2>物品分布</h2>
+                <div id="chart-container" style="width: 100%; height: 300px; background: #f9f9f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #999;">
+                    数据统计区域（下一步接入扇形图）
+                </div>
+                <button class="main-btn secondary" style="margin-top: 15px;" onclick="switchTab('home')">返回主页</button>
             </div>
-            <button class="main-btn" onclick="switchTab('home')">返回主页</button>
         </div>
 
         <!-- 4. 全部物品界面（占位） -->
         <div id="all-items-page" style="display: none;">
-            <h2>全部物品</h2>
-            <p style="color: #999; text-align: center; margin-top: 50px;">暂无物品数据（等待保存功能开发）</p>
+            <div class="card">
+                <h2>全部物品</h2>
+                <p style="color: #999; text-align: center; margin-top: 50px;">暂无物品数据（等待保存功能开发）</p>
+            </div>
         </div>
 
         <!-- 5. 随礼记录界面（占位） -->
         <div id="gift-record-page" style="display: none;">
-            <h2>随礼记录</h2>
-            <p style="color: #999; text-align: center; margin-top: 50px;">随礼记录功能开发中...</p>
+            <div class="card">
+                <h2>随礼记录</h2>
+                <p style="color: #999; text-align: center; margin-top: 50px;">随礼记录功能开发中...</p>
+            </div>
         </div>
 
     </div>
 
     <!-- 底部导航栏 -->
     <nav class="tab-bar">
-        <div class="tab-item active" id="tab-home" onclick="switchTab('home')">主页</div>
-        <div class="tab-item" id="tab-all-items" onclick="switchTab('all-items')">全部物品</div>
-        <div class="tab-item" id="tab-gift-record" onclick="switchTab('gift-record')">随礼记录</div>
+        <div class="tab-item active" id="tab-home" onclick="switchTab('home')">
+            <span class="tab-icon">🏠</span>
+            <span>主页</span>
+        </div>
+        <div class="tab-item" id="tab-all-items" onclick="switchTab('all-items')">
+            <span class="tab-icon">📦</span>
+            <span>全部物品</span>
+        </div>
+        <div class="tab-item" id="tab-gift-record" onclick="switchTab('gift-record')">
+            <span class="tab-icon">💖</span>
+            <span>随礼记录</span>
+        </div>
     </nav>
 
-    <script src="app.js"></script>
-    
     <!-- 自定义平铺日期选择器弹窗 -->
     <div id="date-picker-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:flex-end;">
-        <div style="background:white; width:100%; max-width:500px; border-radius:12px 12px 0 0; padding:20px; box-sizing:border-box; max-height:80vh; display:flex; flex-direction:column;">
+        <div style="background:white; width:100%; max-width:500px; border-radius:16px 16px 0 0; padding:20px; box-sizing:border-box; max-height:80vh; display:flex; flex-direction:column;">
             <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:bold; font-size:16px;">
                 <span id="picker-title">选择年份</span>
                 <span onclick="closeDatePicker()" style="cursor:pointer; color:#999; font-size:22px; line-height:1;">×</span>
             </div>
             <div id="picker-body" style="display:flex; flex-wrap:wrap; gap:10px; overflow-y:auto; justify-content:center; padding-bottom:10px; min-height:200px;">
-                <!-- 平铺选项会由JS自动生成 -->
             </div>
             <div style="text-align:right; border-top:1px solid #eee; padding-top:15px; margin-top:10px;">
-                <button onclick="selectToday()" style="padding:10px 20px; background:#28a745; color:white; border:none; border-radius:6px; font-size:16px; font-weight:bold; cursor:pointer;">今日</button>
+                <button onclick="selectToday()" style="padding:10px 20px; background:#1D91A3; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">今日</button>
             </div>
         </div>
     </div>
+
+    <script src="app.js"></script>
 </body>
 </html>

@@ -47,6 +47,7 @@
             <div class="card">
                 <h3>增加物品</h3>
                 
+
                 <div class="form-group">
                     <label>上传图片（支持拍照/相册）</label>
                     <input type="file" id="item-image" accept="image/*" class="form-input">
@@ -76,6 +77,11 @@
                 <div class="form-group">
                     <label>物品价格</label>
                     <input type="number" id="item-price" placeholder="例如：299" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label>物品个数</label>
+                    <input type="number" id="item-quantity" value="1" min="1" placeholder="例如：1" class="form-input">
                 </div>
 
                 <div class="form-group">
@@ -109,12 +115,10 @@
         </div>
 
         <!-- ================= 4. 全部物品界面 ================= -->
-        <div id="page-all-items" class="page">
-            <div class="card">
-                <h3>全部物品</h3>
-                <!-- 存放物品列表的容器 -->
-                <div id="items-list" style="margin-top: 15px;"></div>
-            </div>
+         <div id="page-all-items" class="page">
+            <h3 style="margin-bottom: 15px; padding-left: 10px;">全部物品</h3>
+            <!-- 存放物品列表的容器 -->
+            <div id="items-list"></div>
         </div>
 
         <!-- ================= 5. 随礼记录界面 ================= -->

@@ -106,11 +106,13 @@ function compressImage(base64Str, maxWidth, callback) {
 // 把数据存进 LocalStorage
 function saveDataToLocal(name, category, price, imageBase64) {
     const items = getItems();
+    const quantity = document.getElementById('item-quantity').value || 1;
     const newItem = {
-        id: Date.now(), // 用时间戳作为唯一 ID
+        id: Date.now(),
         name: name,
         category: category,
         price: price || 0,
+        quantity: quantity,
         image: imageBase64,
         purchaseDate: document.getElementById('purchase-date').value,
         expiryDate: document.getElementById('expiry-date').value,
@@ -128,6 +130,7 @@ function saveDataToLocal(name, category, price, imageBase64) {
 function resetForm() {
     document.getElementById('item-name').value = '';
     document.getElementById('item-price').value = '';
+    document.getElementById('item-quantity').value = '1'; // 重置为 1
     document.getElementById('item-image').value = '';
     document.getElementById('purchase-date').value = '';
     document.getElementById('expiry-date').value = '';
@@ -148,29 +151,74 @@ function updateDashboard() {
 }
 
 // 渲染“全部物品”列表
+// 辅助函数：计算距离某个日期还有多少天
+function getDaysRemaining(dateString) {
+    if (!dateString) return null;
+    const targetDate = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 归零时间，只算天数
+    const diffTime = targetDate - today;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// 渲染“全部物品”列表
 function renderItemsList() {
     const items = getItems();
     const container = document.getElementById('items-list');
     if (!container) return;
     
     if (items.length === 0) {
-        container.innerHTML = '<p style="color:#999;text-align:center;">暂无物品数据</p>';
+        container.innerHTML = '<p style="color:#999;text-align:center; margin-top:50px;">暂无物品数据</p>';
         return;
     }
     
     container.innerHTML = '';
     items.forEach(item => {
+        // 计算保质期倒计时
+        const daysToExpiry = getDaysRemaining(item.expiryDate);
+        let expiryText = '未设置';
+        let expiryClass = '';
+        if (daysToExpiry !== null) {
+            if (daysToExpiry < 0) {
+                expiryText = `已过期 ${Math.abs(daysToExpiry)} 天`;
+                expiryClass = 'text-warning';
+            } else {
+                expiryText = `还剩 ${daysToExpiry} 天`;
+                if (daysToExpiry <= 7) expiryClass = 'text-warning'; // 7天内过期标红
+            }
+        }
+
+        // 计算质保期倒计时
+        const daysToWarranty = getDaysRemaining(item.warrantyDate);
+        let warrantyText = '无质保/未设置';
+        let warrantyClass = '';
+        if (daysToWarranty !== null) {
+            if (daysToWarranty < 0) {
+                warrantyText = `已过保 ${Math.abs(daysToWarranty)} 天`;
+                warrantyClass = 'text-warning';
+            } else {
+                warrantyText = `还剩 ${daysToWarranty} 天`;
+            }
+        }
+
         const div = document.createElement('div');
         div.className = 'item-card';
-        // 如果没有图片，用一个灰底占位
-        const imgSrc = item.image || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjY2MiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiI+PC9yZWN0PjxjaXJjbGUgY3g9IjguNSIgY3k9IjguNSIgcj0iMS41Ij48L2NpcmNsZT48cG9seWxpbmUgcG9pbnRzPSIyMSAxNSAxNiAxMCA1IDIxIj48L3BvbHlsaW5lPjwvc3ZnPg==';
         div.innerHTML = `
-            <img src="${imgSrc}" class="item-img">
-            <div class="item-info">
-                <h4>${item.name}</h4>
-                <p>${item.category} · 购买于 ${item.purchaseDate || '未记录'}</p>
+            <div class="item-header">
+                <div class="item-title">
+                    ${item.name}
+                    <span class="item-quantity">x${item.quantity}</span>
+                </div>
+                <div class="item-category-tag">${item.category}</div>
             </div>
-            <div class="item-price">¥${item.price}</div>
+            <div class="item-info-row">
+                <span>📅 距离过期</span>
+                <span class="${expiryClass}">${expiryText}</span>
+            </div>
+            <div class="item-info-row">
+                <span>🛡️ 距离过质保</span>
+                <span class="${warrantyClass}">${warrantyText}</span>
+            </div>
         `;
         container.appendChild(div);
     });

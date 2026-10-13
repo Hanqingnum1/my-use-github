@@ -2,7 +2,7 @@
 let currentInputId = null;
 let selectedYear = null, selectedMonth = null, selectedDay = null;
 let pickerStep = 'year';
-let myChart = null;
+let myChart = null, myGiftChart = null;
 let editingItemId = null;
 let currentGiftPersonId = null;
 let filterType = 'all';
@@ -16,6 +16,11 @@ let importantSearchKeyword = '';
 let selectedImportantLevel = '提醒';
 let editingImportantId = null;
 let currentImportantDetailId = null;
+let selectedEventChipName = null;
+
+// 图标选择相关
+let iconSrcImage = null;
+let selectedIconCells = []; // [{row, col, num}]
 
 const nationalHolidays = {
     '01-01': '元旦', '02-14': '情人节', '03-08': '妇女节', '03-12': '植树节',
@@ -32,11 +37,11 @@ function switchPage(pageId) {
     el.classList.add('active');
 
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-
     if (pageId === 'page-home') {
         document.getElementById('nav-home').classList.add('active');
         updateDashboard();
         renderUpcomingDates();
+        setTimeout(initCharts, 100);
     } else if (pageId === 'page-all-items') {
         document.getElementById('nav-all-items').classList.add('active');
         renderItemsList();
@@ -46,11 +51,9 @@ function switchPage(pageId) {
     } else if (pageId === 'page-important-dates') {
         document.getElementById('nav-important').classList.add('active');
         backToCalendar();
-    } else if (['page-add', 'page-distribution', 'page-add-gift', 'page-gift-detail', 'page-add-event', 'page-add-important', 'page-important-detail', 'page-profile', 'page-theme', 'page-backup', 'page-lock', 'page-about'].includes(pageId)) {
+    } else if (['page-add','page-add-gift','page-gift-detail','page-add-event','page-add-important','page-important-detail','page-profile','page-theme','page-backup','page-lock','page-about'].includes(pageId)) {
         document.getElementById('nav-home').classList.add('active');
     }
-
-    if (pageId === 'page-distribution') setTimeout(initChart, 100);
     window.scrollTo(0, 0);
 }
 
@@ -75,27 +78,19 @@ function openDrawerPage(pageId) {
     }, 250);
 }
 function refreshDrawerInfo() {
-    const profile = getProfile();
-    const nameEl = document.getElementById('drawer-name');
-    const signEl = document.getElementById('drawer-sign');
-    const avatarEl = document.getElementById('drawer-avatar');
-    nameEl.textContent = profile.nickname || '未设置昵称';
-    signEl.textContent = profile.sign || '点击设置个性签名';
-    if (profile.avatar) {
-        avatarEl.innerHTML = `<img src="${profile.avatar}">`;
-    } else {
-        avatarEl.innerHTML = '👤';
-    }
+    const p = getProfile();
+    document.getElementById('drawer-name').textContent = p.nickname || '未设置昵称';
+    document.getElementById('drawer-sign').textContent = p.sign || '点击设置个性签名';
+    const av = document.getElementById('drawer-avatar');
+    if (p.avatar) av.innerHTML = `<img src="${p.avatar}">`;
+    else av.innerHTML = '👤';
 }
 
 // ================= 个人资料 =================
 function getProfile() {
     return JSON.parse(localStorage.getItem('myProfile')) || { nickname: '', sign: '', avatar: '' };
 }
-function saveProfile(profile) {
-    localStorage.setItem('myProfile', JSON.stringify(profile));
-    refreshDrawerInfo();
-}
+function saveProfile(p) { localStorage.setItem('myProfile', JSON.stringify(p)); refreshDrawerInfo(); }
 function loadProfile() {
     const p = getProfile();
     document.getElementById('profile-nickname-display').textContent = p.nickname || '未设置昵称';
@@ -105,39 +100,30 @@ function loadProfile() {
 function uploadAvatar(input) {
     if (!input.files[0]) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-        compressImage(e.target.result, 300, (base64) => {
-            const p = getProfile();
-            p.avatar = base64;
-            saveProfile(p);
-            document.getElementById('profile-avatar-img').src = base64;
-        });
-    };
+    reader.onload = (e) => compressImage(e.target.result, 300, (b64) => {
+        const p = getProfile(); p.avatar = b64; saveProfile(p);
+        document.getElementById('profile-avatar-img').src = b64;
+    });
     reader.readAsDataURL(input.files[0]);
 }
 function editField(field) {
     const p = getProfile();
     if (field === 'nickname') {
-        const val = prompt('请输入昵称：', p.nickname || '');
-        if (val !== null) { p.nickname = val.trim(); saveProfile(p); loadProfile(); }
-    } else if (field === 'sign') {
-        const val = prompt('请输入个性签名：', p.sign || '');
-        if (val !== null) { p.sign = val.trim(); saveProfile(p); loadProfile(); }
+        const v = prompt('请输入昵称：', p.nickname || '');
+        if (v !== null) { p.nickname = v.trim(); saveProfile(p); loadProfile(); }
+    } else {
+        const v = prompt('请输入个性签名：', p.sign || '');
+        if (v !== null) { p.sign = v.trim(); saveProfile(p); loadProfile(); }
     }
 }
 
 // ================= 主题 =================
-function getTheme() {
-    return JSON.parse(localStorage.getItem('myTheme')) || { color: '#d98880', dark: false, wallpaper: '' };
-}
-function saveTheme(t) {
-    localStorage.setItem('myTheme', JSON.stringify(t));
-}
+function getTheme() { return JSON.parse(localStorage.getItem('myTheme')) || { color: '#d98880', dark: false, wallpaper: '' }; }
+function saveTheme(t) { localStorage.setItem('myTheme', JSON.stringify(t)); }
 function applyTheme() {
     const t = getTheme();
     document.documentElement.style.setProperty('--primary', t.color);
-    if (t.dark) document.body.classList.add('dark-mode');
-    else document.body.classList.remove('dark-mode');
+    document.body.classList.toggle('dark-mode', !!t.dark);
     if (t.wallpaper) {
         document.body.style.backgroundImage = `url(${t.wallpaper})`;
         document.body.style.backgroundSize = 'cover';
@@ -152,69 +138,149 @@ function loadTheme() {
     document.getElementById('setting-startpage').value = t.startpage || 'home';
     document.getElementById('dark-mode-toggle').checked = !!t.dark;
 }
-function saveSetting(key, value) {
-    const t = getTheme();
-    t[key] = value;
-    saveTheme(t);
-}
-function setThemeColor(color) {
-    const t = getTheme();
-    t.color = color;
-    saveTheme(t);
-    applyTheme();
-}
-function toggleDarkMode(on) {
-    const t = getTheme();
-    t.dark = on;
-    saveTheme(t);
-    applyTheme();
-}
+function saveSetting(k, v) { const t = getTheme(); t[k] = v; saveTheme(t); }
+function setThemeColor(c) { const t = getTheme(); t.color = c; saveTheme(t); applyTheme(); }
+function toggleDarkMode(on) { const t = getTheme(); t.dark = on; saveTheme(t); applyTheme(); }
 function uploadWallpaper(input) {
     if (!input.files[0]) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-        compressImage(e.target.result, 800, (base64) => {
-            const t = getTheme();
-            t.wallpaper = base64;
-            saveTheme(t);
-            applyTheme();
-        });
-    };
+    reader.onload = (e) => compressImage(e.target.result, 800, (b64) => {
+        const t = getTheme(); t.wallpaper = b64; saveTheme(t); applyTheme();
+    });
     reader.readAsDataURL(input.files[0]);
 }
-function clearWallpaper() {
-    const t = getTheme();
-    t.wallpaper = '';
-    saveTheme(t);
-    applyTheme();
+function clearWallpaper() { const t = getTheme(); t.wallpaper = ''; saveTheme(t); applyTheme(); }
+
+// ================= 自定义导航图标 =================
+function getCustomIcons() { return JSON.parse(localStorage.getItem('myCustomIcons')) || { src: '', cells: [] }; }
+function saveCustomIcons(data) { localStorage.setItem('myCustomIcons', JSON.stringify(data)); }
+
+function uploadIconImage(input) {
+    if (!input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => compressImage(e.target.result, 600, (b64) => {
+        iconSrcImage = b64;
+        selectedIconCells = [];
+        showIconSelector();
+    });
+    reader.readAsDataURL(input.files[0]);
+}
+
+function showIconSelector() {
+    document.getElementById('icon-selector-area').style.display = 'block';
+    document.getElementById('icon-source-img').src = iconSrcImage;
+    const overlay = document.getElementById('icon-grid-overlay');
+    overlay.innerHTML = '';
+    // 4x4 网格
+    for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'icon-cell';
+            cell.style.left = (c * 25) + '%';
+            cell.style.top = (r * 25) + '%';
+            cell.style.width = '25%';
+            cell.style.height = '25%';
+            cell.dataset.row = r;
+            cell.dataset.col = c;
+            cell.onclick = () => toggleIconCell(r, c, cell);
+            overlay.appendChild(cell);
+        }
+    }
+    refreshIconSelection();
+}
+
+function toggleIconCell(r, c, cellEl) {
+    const idx = selectedIconCells.findIndex(x => x.row === r && x.col === c);
+    if (idx !== -1) {
+        selectedIconCells.splice(idx, 1);
+        // 重新编号
+        selectedIconCells.forEach((item, i) => item.num = i + 1);
+    } else {
+        if (selectedIconCells.length >= 4) { alert('最多选择 4 个区域'); return; }
+        selectedIconCells.push({ row: r, col: c, num: selectedIconCells.length + 1 });
+    }
+    // 保存
+    const data = { src: iconSrcImage, cells: selectedIconCells };
+    saveCustomIcons(data);
+    applyCustomIcons();
+    refreshIconSelection();
+}
+
+function refreshIconSelection() {
+    document.querySelectorAll('#icon-grid-overlay .icon-cell').forEach(cell => {
+        cell.classList.remove('selected');
+        cell.removeAttribute('data-num');
+    });
+    selectedIconCells.forEach(item => {
+        const selector = `#icon-grid-overlay .icon-cell[data-row="${item.row}"][data-col="${item.col}"]`;
+        const el = document.querySelector(selector);
+        if (el) {
+            el.classList.add('selected');
+            el.setAttribute('data-num', item.num);
+        }
+    });
+    document.getElementById('icon-selected-count').textContent = selectedIconCells.length;
+}
+
+function applyCustomIcons() {
+    const data = getCustomIcons();
+    const navKeys = ['home', 'items', 'gift', 'important'];
+    const defaults = ['🏠', '📦', '🎁', '📅'];
+    navKeys.forEach((key, i) => {
+        const el = document.getElementById('nav-icon-' + key);
+        if (!el) return;
+        // 清空
+        el.style.backgroundImage = '';
+        el.style.backgroundSize = '';
+        el.style.backgroundPosition = '';
+        el.style.width = '';
+        el.style.height = '';
+        el.style.borderRadius = '';
+        el.textContent = '';
+
+        const cell = data.cells[i];
+        if (cell && data.src) {
+            el.style.backgroundImage = `url(${data.src})`;
+            el.style.backgroundSize = '400% 400%';
+            el.style.backgroundPosition = `${(cell.col / 3) * 100}% ${(cell.row / 3) * 100}%`;
+            el.style.width = '22px';
+            el.style.height = '22px';
+            el.style.borderRadius = '5px';
+        } else {
+            el.textContent = defaults[i];
+        }
+    });
+}
+
+function clearCustomIcons() {
+    if (!confirm('确定要重置自定义图标吗？')) return;
+    localStorage.removeItem('myCustomIcons');
+    iconSrcImage = null;
+    selectedIconCells = [];
+    document.getElementById('icon-selector-area').style.display = 'none';
+    applyCustomIcons();
 }
 
 // ================= 数据备份 =================
 function updateStorageUsage() {
     let total = 0;
     for (let k in localStorage) {
-        if (localStorage.hasOwnProperty(k)) {
-            total += localStorage[k].length + k.length;
-        }
+        if (localStorage.hasOwnProperty(k)) total += localStorage[k].length + k.length;
     }
-    const kb = (total / 1024).toFixed(1);
-    document.getElementById('storage-usage').textContent = kb + ' KB';
+    document.getElementById('storage-usage').textContent = (total / 1024).toFixed(1) + ' KB';
 }
 function exportData() {
     const data = {
         items: JSON.parse(localStorage.getItem('myItems') || '[]'),
         giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'),
         importantDates: JSON.parse(localStorage.getItem('myImportantDates') || '[]'),
-        profile: getProfile(),
-        theme: getTheme()
+        profile: getProfile(), theme: getTheme()
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'my-life-backup-' + Date.now() + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = 'my-life-backup-' + Date.now() + '.json';
+    a.click(); URL.revokeObjectURL(url);
 }
 function importData(input) {
     if (!input.files[0]) return;
@@ -228,8 +294,7 @@ function importData(input) {
                 if (data.importantDates) localStorage.setItem('myImportantDates', JSON.stringify(data.importantDates));
                 if (data.profile) localStorage.setItem('myProfile', JSON.stringify(data.profile));
                 if (data.theme) localStorage.setItem('myTheme', JSON.stringify(data.theme));
-                alert('导入成功！');
-                location.reload();
+                alert('导入成功！'); location.reload();
             }
         } catch (err) { alert('文件格式错误！'); }
     };
@@ -237,30 +302,32 @@ function importData(input) {
 }
 function clearAllData() {
     if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
-        localStorage.clear();
-        alert('已清空，即将刷新');
-        location.reload();
+        localStorage.clear(); alert('已清空'); location.reload();
     }
 }
 
 // ================= 应用锁 =================
-function getLockSettings() {
-    return JSON.parse(localStorage.getItem('myLock')) || { type: '' };
-}
+function getLockSettings() { return JSON.parse(localStorage.getItem('myLock')) || { type: '' }; }
 function loadLockSettings() {
     const l = getLockSettings();
     document.querySelectorAll('.lock-check').forEach(el => el.classList.remove('active'));
-    if (l.type) {
-        const el = document.getElementById('lock-' + l.type);
-        if (el) el.classList.add('active');
-    }
+    if (l.type) { const el = document.getElementById('lock-' + l.type); if (el) el.classList.add('active'); }
 }
 function setLockType(type) {
     const l = getLockSettings();
-    if (l.type === type) { l.type = ''; }
-    else { l.type = type; }
+    l.type = l.type === type ? '' : type;
     localStorage.setItem('myLock', JSON.stringify(l));
     loadLockSettings();
+}
+
+// ================= 事件 chips =================
+function selectEventChip(type) {
+    document.getElementById('gift-event').value = type;
+    document.querySelectorAll('#page-add-gift .chip').forEach(c => c.classList.toggle('active', c.dataset.type === type));
+}
+function selectEventChip2(type) {
+    document.getElementById('event-name').value = type;
+    document.querySelectorAll('#page-add-event .chip').forEach(c => c.classList.toggle('active', c.dataset.type === type));
 }
 
 // ================= 物品 =================
@@ -284,7 +351,6 @@ function saveItem() {
         const purchaseDate = document.getElementById('purchase-date').value;
         const expiryDate = document.getElementById('expiry-date').value;
         const warrantyDate = document.getElementById('warranty-date').value;
-
         if (editingItemId) {
             const idx = items.findIndex(i => i.id === editingItemId);
             if (idx !== -1) items[idx] = { ...items[idx], name, category, price, quantity, image: imageBase64 || items[idx].image, purchaseDate, expiryDate, warrantyDate };
@@ -320,9 +386,7 @@ function compressImage(base64Str, maxWidth, callback) {
 
 function resetForm() {
     editingItemId = null;
-    document.getElementById('form-title').innerText = '增加物品';
-    document.getElementById('save-btn').innerText = '保存物品';
-    ['item-name', 'item-price', 'item-image', 'purchase-date', 'expiry-date', 'warranty-date'].forEach(id => document.getElementById(id).value = '');
+    ['item-name','item-price','item-image','purchase-date','expiry-date','warranty-date'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('item-quantity').value = '1';
     document.getElementById('category').value = '';
     document.getElementById('warranty-box').style.display = 'none';
@@ -334,7 +398,6 @@ function updateDashboard() {
     let totalPrice = 0;
     items.forEach(i => totalPrice += parseFloat(i.price || 0));
     document.querySelector('.hero-value').innerText = '¥ ' + totalPrice.toFixed(2);
-
     const records = getGiftRecords();
     let totalGift = 0;
     records.forEach(r => r.events.forEach(e => totalGift += e.amount));
@@ -344,15 +407,11 @@ function updateDashboard() {
 function getDaysRemaining(dateString) {
     if (!dateString) return null;
     const target = new Date(dateString);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
 }
 
-function toggleFilterMenu() {
-    const m = document.getElementById('filter-menu');
-    m.style.display = m.style.display === 'none' ? 'block' : 'none';
-}
+function toggleFilterMenu() { const m = document.getElementById('filter-menu'); m.style.display = m.style.display === 'none' ? 'block' : 'none'; }
 function setFilterType(t) { filterType = t; updateFilterButtons(); renderItemsList(); }
 function setFilterStatus(s) { filterStatus = s; updateFilterButtons(); renderItemsList(); }
 function updateFilterButtons() {
@@ -368,7 +427,6 @@ function renderItemsList() {
     const container = document.getElementById('items-list');
     const kw = document.getElementById('search-input').value.toLowerCase().trim();
     if (!container) return;
-
     if (kw) items = items.filter(i => i.name.toLowerCase().includes(kw) || i.category.toLowerCase().includes(kw));
     if (filterType === 'expiring') items = items.filter(i => { const d = getDaysRemaining(i.expiryDate); return d !== null && d >= 0 && d <= 90; });
     else if (filterType === 'warranty') items = items.filter(i => { if (i.category !== '家电' && i.category !== '电子产品') return false; const d = getDaysRemaining(i.warrantyDate); return d !== null && d >= 0 && d <= 90; });
@@ -378,7 +436,6 @@ function renderItemsList() {
     else if (filterStatus === 'not-warranty-expired') items = items.filter(i => { if (i.category !== '家电' && i.category !== '电子产品') return true; const d = getDaysRemaining(i.warrantyDate); return d === null || d >= 0; });
 
     if (items.length === 0) { container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">暂无匹配的物品</p>'; return; }
-
     items.sort((a, b) => {
         const dA = a.expiryDate ? getDaysRemaining(a.expiryDate) : 99999;
         const dB = b.expiryDate ? getDaysRemaining(b.expiryDate) : 99999;
@@ -386,7 +443,6 @@ function renderItemsList() {
         const wB = b.warrantyDate ? getDaysRemaining(b.warrantyDate) : 99999;
         return Math.min(dA, wA) - Math.min(dB, wB);
     });
-
     container.innerHTML = '';
     items.forEach(item => {
         const dExp = getDaysRemaining(item.expiryDate);
@@ -413,8 +469,7 @@ function renderItemsList() {
                 <div class="item-title">${item.name} <span class="item-quantity">x${item.quantity}</span></div>
                 <div class="item-category-tag">${item.category}</div>
             </div>
-            ${expiryHtml}
-            ${warrantyHtml}
+            ${expiryHtml}${warrantyHtml}
         `;
         container.appendChild(div);
     });
@@ -424,8 +479,6 @@ function editItem(id) {
     const item = getItems().find(i => i.id === id);
     if (!item) return;
     editingItemId = id;
-    document.getElementById('form-title').innerText = '编辑物品';
-    document.getElementById('save-btn').innerText = '保存修改';
     document.getElementById('item-name').value = item.name || '';
     document.getElementById('item-price').value = item.price || '';
     document.getElementById('item-quantity').value = item.quantity || 1;
@@ -437,20 +490,38 @@ function editItem(id) {
     switchPage('page-add');
 }
 
-function initChart() {
-    const chartDom = document.getElementById('chart-container');
-    if (!chartDom) return;
-    if (myChart) myChart.dispose();
-    myChart = echarts.init(chartDom);
-    const categoryCount = {};
-    getItems().forEach(i => categoryCount[i.category] = (categoryCount[i.category] || 0) + 1);
-    const chartData = Object.keys(categoryCount).map(k => ({ name: k, value: categoryCount[k] }));
-    myChart.setOption({
-        tooltip: { trigger: 'item' },
-        legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 15, icon: 'circle' },
-        color: ['#d98880', '#85c1e9', '#82c8a0', '#f7dc6f', '#bb8fce', '#f5b041', '#f5b7b1', '#aed6f1'],
-        series: [{ name: '物品分布', type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: chartData.length > 0 ? chartData : [{ value: 0, name: '暂无数据', itemStyle: { color: '#eee' } }] }]
-    });
+// ================= 分布图 =================
+function initCharts() {
+    // 物品分布
+    const itemEl = document.getElementById('item-chart-container');
+    if (itemEl) {
+        if (myChart) myChart.dispose();
+        myChart = echarts.init(itemEl);
+        const cc = {};
+        getItems().forEach(i => cc[i.category] = (cc[i.category] || 0) + 1);
+        const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
+        myChart.setOption({
+            tooltip: { trigger: 'item' },
+            legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 12, icon: 'circle', textStyle: { fontSize: 11 } },
+            color: ['#d98880', '#85c1e9', '#82c8a0', '#f7dc6f', '#bb8fce', '#f5b041', '#f5b7b1', '#aed6f1'],
+            series: [{ name: '物品分布', type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: data.length > 0 ? data : [{ value: 0, name: '暂无数据', itemStyle: { color: '#eee' } }] }]
+        });
+    }
+    // 随礼分布
+    const giftEl = document.getElementById('gift-chart-container');
+    if (giftEl) {
+        if (myGiftChart) myGiftChart.dispose();
+        myGiftChart = echarts.init(giftEl);
+        const cc = {};
+        getGiftRecords().forEach(r => r.events.forEach(e => cc[e.event] = (cc[e.event] || 0) + e.amount));
+        const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
+        myGiftChart.setOption({
+            tooltip: { trigger: 'item', formatter: '{b}: ¥{c}' },
+            legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 12, icon: 'circle', textStyle: { fontSize: 11 } },
+            color: ['#f5b7b1', '#f7dc6f', '#82c8a0', '#85c1e9', '#bb8fce', '#f5b041', '#d98880', '#aed6f1'],
+            series: [{ name: '随礼分布', type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: data.length > 0 ? data : [{ value: 0, name: '暂无数据', itemStyle: { color: '#eee' } }] }]
+        });
+    }
 }
 
 // ================= 随礼 =================
@@ -462,19 +533,16 @@ function saveGiftPerson() {
     const amount = document.getElementById('gift-amount').value;
     const date = document.getElementById('gift-date').value;
     const location = document.getElementById('gift-location').value.trim();
-
     if (!person || !event || !amount) { alert('请填写随礼人、事件和金额！'); return; }
-
     let records = getGiftRecords();
     let existing = records.find(r => r.person === person);
     const newEvent = { id: Date.now(), event, amount: parseFloat(amount), date, location };
-
     if (existing) existing.events.push(newEvent);
     else records.push({ id: Date.now(), person, events: [newEvent] });
-
     localStorage.setItem('myGiftRecords', JSON.stringify(records));
     alert('保存成功！');
-    ['gift-person', 'gift-event', 'gift-amount', 'gift-date', 'gift-location'].forEach(id => document.getElementById(id).value = '');
+    ['gift-person','gift-event','gift-amount','gift-date','gift-location'].forEach(id => document.getElementById(id).value = '');
+    document.querySelectorAll('#page-add-gift .chip').forEach(c => c.classList.remove('active'));
     switchPage('page-gift-record');
 }
 
@@ -483,30 +551,18 @@ function renderGiftList() {
     const container = document.getElementById('gift-list');
     const kw = document.getElementById('gift-search-input').value.toLowerCase().trim();
     if (!container) return;
-
     let filtered = kw ? records.filter(r => r.person.toLowerCase().includes(kw)) : records;
     if (filtered.length === 0) { container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">暂无随礼记录</p>'; return; }
-
     container.innerHTML = '';
-    const colors = ['#fadbd8', '#f5b7b1', '#f9e79f', '#a9dfbf', '#aed6f1', '#d2b4de', '#f5cba7', '#f1948a'];
-
+    const colors = ['#fadbd8','#f5b7b1','#f9e79f','#a9dfbf','#aed6f1','#d2b4de','#f5cba7','#f1948a'];
     filtered.forEach(record => {
-        let total = 0;
-        record.events.forEach(e => total += e.amount);
+        let total = 0; record.events.forEach(e => total += e.amount);
         let tagsHtml = '';
-        record.events.forEach((ev, i) => {
-            tagsHtml += `<span class="event-tag" style="background: ${colors[i % colors.length]};">${ev.event} ¥${ev.amount}</span>`;
-        });
+        record.events.forEach((ev, i) => { tagsHtml += `<span class="event-tag" style="background: ${colors[i % colors.length]};">${ev.event} ¥${ev.amount}</span>`; });
         const div = document.createElement('div');
         div.className = 'gift-card';
         div.setAttribute('onclick', `showGiftDetail(${record.id})`);
-        div.innerHTML = `
-            <div class="gift-info-left">
-                <div class="gift-person-name">${record.person}</div>
-                <div class="gift-events-preview">${tagsHtml}</div>
-            </div>
-            <div class="gift-total">共 ¥${total}</div>
-        `;
+        div.innerHTML = `<div class="gift-info-left"><div class="gift-person-name">${record.person}</div><div class="gift-events-preview">${tagsHtml}</div></div><div class="gift-total">共 ¥${total}</div>`;
         container.appendChild(div);
     });
 }
@@ -528,18 +584,14 @@ function renderGiftEventList() {
     [...record.events].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(ev => {
         const div = document.createElement('div');
         div.className = 'event-card';
-        div.innerHTML = `
-            <div class="event-header">${ev.event}</div>
-            <div class="event-info">💰 礼金：¥${ev.amount}</div>
-            <div class="event-info">📅 时间：${ev.date || '未记录'}</div>
-            <div class="event-info">📍 地点：${ev.location || '未记录'}</div>
-        `;
+        div.innerHTML = `<div class="event-header">${ev.event}</div><div class="event-info">💰 礼金：¥${ev.amount}</div><div class="event-info">📅 时间：${ev.date || '未记录'}</div><div class="event-info">📍 地点：${ev.location || '未记录'}</div>`;
         container.appendChild(div);
     });
 }
 
 function showAddEventPage() {
-    ['event-name', 'event-amount', 'event-date', 'event-location'].forEach(id => document.getElementById(id).value = '');
+    ['event-name','event-amount','event-date','event-location'].forEach(id => document.getElementById(id).value = '');
+    document.querySelectorAll('#page-add-event .chip').forEach(c => c.classList.remove('active'));
     switchPage('page-add-event');
 }
 
@@ -564,9 +616,7 @@ function getImportantDates() { return JSON.parse(localStorage.getItem('myImporta
 
 function selectLevel(level) {
     selectedImportantLevel = level;
-    document.querySelectorAll('.level-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.level === level);
-    });
+    document.querySelectorAll('.level-btn').forEach(b => b.classList.toggle('active', b.dataset.level === level));
 }
 
 function saveImportantDate() {
@@ -574,7 +624,6 @@ function saveImportantDate() {
     const date = document.getElementById('important-date').value;
     const event = document.getElementById('important-event').value.trim();
     if (!date || !event) { alert('请填写日期和事件！'); return; }
-
     let dates = getImportantDates();
     if (editingImportantId) {
         const idx = dates.findIndex(d => d.id === editingImportantId);
@@ -586,8 +635,6 @@ function saveImportantDate() {
     }
     localStorage.setItem('myImportantDates', JSON.stringify(dates));
     editingImportantId = null;
-    document.getElementById('important-form-title').innerText = '增加重要日期';
-    document.getElementById('important-save-btn').innerText = '保存日期';
     document.getElementById('important-person').value = '';
     document.getElementById('important-date').value = '';
     document.getElementById('important-event').value = '';
@@ -599,8 +646,7 @@ function showImportantDetail(id) {
     const item = getImportantDates().find(d => d.id === id);
     if (!item) return;
     currentImportantDetailId = id;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     const days = Math.ceil((new Date(item.date) - today) / (1000 * 60 * 60 * 24));
     let dayText = days === 0 ? '今天' : (days > 0 ? `${days}天后` : `已过去${Math.abs(days)}天`);
     document.getElementById('important-detail-content').innerHTML = `
@@ -610,8 +656,7 @@ function showImportantDetail(id) {
                 <span class="important-card-level">${item.level}</span>
             </div>
             <div class="important-card-date" style="margin-top:10px;">📅 日期：${item.date} (${dayText})</div>
-        </div>
-    `;
+        </div>`;
     switchPage('page-important-detail');
 }
 
@@ -619,8 +664,6 @@ function editImportantDate() {
     const item = getImportantDates().find(d => d.id === currentImportantDetailId);
     if (!item) return;
     editingImportantId = item.id;
-    document.getElementById('important-form-title').innerText = '编辑重要日期';
-    document.getElementById('important-save-btn').innerText = '保存修改';
     document.getElementById('important-person').value = item.person || '';
     document.getElementById('important-date').value = item.date;
     document.getElementById('important-event').value = item.event;
@@ -632,26 +675,21 @@ function renderUpcomingDates() {
     const section = document.getElementById('upcoming-dates-section');
     if (!section) return;
     const dates = getImportantDates();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     const upcoming = dates.map(d => {
         const days = Math.ceil((new Date(d.date) - today) / (1000 * 60 * 60 * 24));
         return { ...d, days };
     }).filter(d => d.days >= 0 && d.days <= 30).sort((a, b) => a.days - b.days);
-
     if (upcoming.length === 0) { section.innerHTML = ''; return; }
-
     let html = '<div class="card"><h3 style="margin-bottom:12px;">马上要发生 👇</h3>';
     upcoming.forEach(d => {
-        html += `
-            <div class="upcoming-card" onclick="showImportantDetail(${d.id})">
-                <div class="upcoming-info">
-                    <div class="upcoming-event">${d.person ? `[${d.person}] ` : ''}${d.event}</div>
-                    <div class="upcoming-date">${d.date} · ${d.level}</div>
-                </div>
-                <div class="upcoming-days">${d.days}<small>天后</small></div>
+        html += `<div class="upcoming-card" onclick="showImportantDetail(${d.id})">
+            <div class="upcoming-info">
+                <div class="upcoming-event">${d.person ? `[${d.person}] ` : ''}${d.event}</div>
+                <div class="upcoming-date">${d.date} · ${d.level}</div>
             </div>
-        `;
+            <div class="upcoming-days">${d.days}<small>天后</small></div>
+        </div>`;
     });
     html += '</div>';
     section.innerHTML = html;
@@ -670,23 +708,18 @@ function renderCalendar() {
     const grid = document.getElementById('calendar-grid');
     const title = document.getElementById('calendar-month-title');
     title.innerText = `${calYear}年${calMonth}月`;
-
     const firstDay = new Date(calYear, calMonth - 1, 1).getDay();
     const daysInMonth = new Date(calYear, calMonth, 0).getDate();
     const kw = importantSearchKeyword.toLowerCase();
-
     let dates = getImportantDates();
     if (kw) dates = dates.filter(d => d.event.toLowerCase().includes(kw));
-
     let html = '';
     for (let i = 0; i < firstDay; i++) html += '<div class="cal-cell empty"></div>';
-
     for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const holiday = nationalHolidays[`${String(calMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`];
         const dayOfWeek = (firstDay + d - 1) % 7;
         const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-
         let lunarText = '', jieQiText = '';
         try {
             if (typeof Lunar !== 'undefined') {
@@ -695,16 +728,14 @@ function renderCalendar() {
                 lunarText = lunar.getDayInChinese();
             }
         } catch (e) {}
-
         const dayEvents = dates.filter(dt => dt.date === dateStr);
         let eventsHtml = '';
         dayEvents.slice(0, 2).forEach(ev => {
-            let bgColor = '#f5b7b1';
-            if (ev.level === '重要') bgColor = '#d98880';
-            else if (ev.level === '纪念') bgColor = '#bb8fce';
+            let bgColor = '#f9d5cf';
+            if (ev.level === '重要') bgColor = '#e8a49b';
+            else if (ev.level === '纪念') bgColor = '#c96a5a';
             eventsHtml += `<div class="cal-event-rect" style="background:${bgColor}">${ev.event}</div>`;
         });
-
         html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''}" onclick="selectCalDay('${dateStr}')">
             <span class="cal-day">${d}</span>
             ${jieQiText ? `<span class="cal-holiday">${jieQiText}</span>` : (lunarText ? `<span class="cal-lunar">${lunarText}</span>` : '')}
@@ -722,15 +753,13 @@ function selectCalDay(dateStr) {
     if (dates.length === 0) { detail.style.display = 'none'; return; }
     let html = '';
     dates.forEach(d => {
-        html += `
-            <div class="important-card level-${d.level}" onclick="showImportantDetail(${d.id})">
-                <div class="important-card-header">
-                    <span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${d.event}</span>
-                    <span class="important-card-level">${d.level}</span>
-                </div>
-                <div class="important-card-date">${d.date}</div>
+        html += `<div class="important-card level-${d.level}" onclick="showImportantDetail(${d.id})">
+            <div class="important-card-header">
+                <span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${d.event}</span>
+                <span class="important-card-level">${d.level}</span>
             </div>
-        `;
+            <div class="important-card-date">${d.date}</div>
+        </div>`;
     });
     detail.innerHTML = html;
     detail.style.display = 'block';
@@ -747,20 +776,15 @@ function backToCalendar() {
 function toggleImportantSearch() {
     const bar = document.getElementById('important-search-bar');
     bar.style.display = bar.style.display === 'none' ? 'block' : 'none';
-    if (bar.style.display === 'none') {
-        importantSearchKeyword = '';
-        document.getElementById('important-search-input').value = '';
-    } else document.getElementById('important-search-input').focus();
+    if (bar.style.display === 'none') { importantSearchKeyword = ''; document.getElementById('important-search-input').value = ''; }
+    else document.getElementById('important-search-input').focus();
 }
-
 function toggleImportantMenu() {
     const m = document.getElementById('important-menu');
     m.style.display = m.style.display === 'none' ? 'block' : 'none';
 }
-
 function setImportantFilter(f) { importantFilter = f; updateImportantMenuButtons(); showImportantListView(); }
 function setImportantTransition(t) { importantTransition = t; updateImportantMenuButtons(); showImportantListView(); }
-
 function updateImportantMenuButtons() {
     document.querySelectorAll('#important-menu .filter-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -768,7 +792,6 @@ function updateImportantMenuButtons() {
         if (btn.dataset.importantTransition && btn.dataset.importantTransition === importantTransition) btn.classList.add('active');
     });
 }
-
 function showImportantListView() {
     document.getElementById('important-menu').style.display = 'none';
     document.getElementById('calendar-view').style.display = 'none';
@@ -783,15 +806,11 @@ function renderImportantList() {
     const container = document.getElementById('important-list-items');
     if (kw) dates = dates.filter(d => d.event.toLowerCase().includes(kw));
     if (importantFilter !== 'all') dates = dates.filter(d => d.level === importantFilter);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     if (importantTransition === 'ended') dates = dates.filter(d => new Date(d.date) < today);
     else if (importantTransition === 'ongoing') dates = dates.filter(d => new Date(d.date) >= today);
     dates.sort((a, b) => new Date(a.date) - new Date(b.date));
-
     if (dates.length === 0) { container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">暂无匹配的重要日期</p>'; return; }
-
     container.innerHTML = '';
     dates.forEach(d => {
         const days = Math.ceil((new Date(d.date) - today) / (1000 * 60 * 60 * 24));
@@ -799,13 +818,7 @@ function renderImportantList() {
         const div = document.createElement('div');
         div.className = `important-card level-${d.level}`;
         div.setAttribute('onclick', `showImportantDetail(${d.id})`);
-        div.innerHTML = `
-            <div class="important-card-header">
-                <span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${d.event}</span>
-                <span class="important-card-level">${d.level}</span>
-            </div>
-            <div class="important-card-date">${d.date} · ${dayText}</div>
-        `;
+        div.innerHTML = `<div class="important-card-header"><span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${d.event}</span><span class="important-card-level">${d.level}</span></div><div class="important-card-date">${d.date} · ${dayText}</div>`;
         container.appendChild(div);
     });
 }
@@ -866,4 +879,6 @@ window.addEventListener('load', () => {
     selectLevel('提醒');
     renderUpcomingDates();
     refreshDrawerInfo();
+    applyCustomIcons();
+    setTimeout(initCharts, 200);
 });

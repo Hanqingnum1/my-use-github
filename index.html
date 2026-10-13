@@ -5,16 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>我的物品库</title>
     <link rel="stylesheet" href="style.css">
-    <!-- 引入 ECharts 图表库 -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 </head>
 <body>
 
-    <!-- 内容区 -->
     <div id="main-content">
         
-        <!-- ================= 1. 主页界面 ================= -->
+        <!-- ================= 1. 主页 ================= -->
         <div id="page-home" class="page active">
+            <!-- 总物品数量卡片（青色） -->
             <div class="hero-card">
                 <div class="hero-header">
                     <span>总物品数量</span>
@@ -24,14 +23,26 @@
                 <div class="hero-footer">本月支出 ¥ 0.00</div>
             </div>
 
+            <!-- 总随礼金额卡片（粉色，格式同上） -->
+            <div class="hero-card hero-gift">
+                <div class="hero-header">
+                    <span>总随礼金额</span>
+                </div>
+                <div class="hero-value" id="total-gift-amount">¥ 0.00</div>
+            </div>
+
             <div class="quick-grid">
                 <div class="quick-item" onclick="switchPage('page-add')">
                     <div class="quick-icon" style="background:#fff0e6; color:#ff9f43;">＋</div>
-                    <span>增加物品</span>
+                    <span>物品</span>
                 </div>
                 <div class="quick-item" onclick="switchPage('page-distribution')">
                     <div class="quick-icon" style="background:#e8f4ff; color:#2e86de;">📊</div>
                     <span>物品分布</span>
+                </div>
+                <div class="quick-item" onclick="switchPage('page-add-gift')">
+                    <div class="quick-icon" style="background:#fceef5; color:#e84393;">＋</div>
+                    <span>随礼</span>
                 </div>
             </div>
 
@@ -41,16 +52,14 @@
             </div>
         </div>
 
-        <!-- ================= 2. 增加/编辑物品界面 ================= -->
+        <!-- ================= 2. 增加物品 ================= -->
         <div id="page-add" class="page">
             <div class="card">
                 <h3 id="form-title">增加物品</h3>
-                
                 <div class="form-group">
                     <label>上传图片（支持拍照/相册）</label>
                     <input type="file" id="item-image" accept="image/*" class="form-input">
                 </div>
-
                 <div class="form-group">
                     <label>物品分类</label>
                     <select id="category" onchange="toggleWarranty()" class="form-input">
@@ -66,43 +75,36 @@
                         <option value="手办">手办</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label>物品名称</label>
                     <input type="text" id="item-name" placeholder="例如：吹风机" class="form-input">
                 </div>
-
                 <div class="form-group">
                     <label>物品价格</label>
                     <input type="number" id="item-price" placeholder="例如：299" class="form-input">
                 </div>
-
                 <div class="form-group">
                     <label>物品个数</label>
-                    <input type="number" id="item-quantity" value="1" min="1" placeholder="例如：1" class="form-input">
+                    <input type="number" id="item-quantity" value="1" min="1" class="form-input">
                 </div>
-
                 <div class="form-group">
                     <label>购买时间</label>
                     <input type="text" id="purchase-date" readonly inputmode="none" placeholder="点击选择购买时间" class="form-input" onclick="openDatePicker('purchase-date')" onfocus="this.blur()">
                 </div>
-
                 <div class="form-group">
                     <label>物品保质期</label>
                     <input type="text" id="expiry-date" readonly inputmode="none" placeholder="点击选择保质期" class="form-input" onclick="openDatePicker('expiry-date')" onfocus="this.blur()">
                 </div>
-
                 <div class="form-group" id="warranty-box" style="display: none;">
                     <label>物品质保期</label>
                     <input type="text" id="warranty-date" readonly inputmode="none" placeholder="点击选择质保期" class="form-input" onclick="openDatePicker('warranty-date')" onfocus="this.blur()">
                 </div>
-
                 <button class="btn-primary" id="save-btn" onclick="saveItem()">保存物品</button>
                 <button class="btn-secondary" onclick="switchPage('page-home')">取消并返回</button>
             </div>
         </div>
 
-        <!-- ================= 3. 物品分布界面 ================= -->
+        <!-- ================= 3. 物品分布 ================= -->
         <div id="page-distribution" class="page">
             <div class="card">
                 <h3>物品分布</h3>
@@ -111,24 +113,116 @@
             <button class="btn-secondary" onclick="switchPage('page-home')">返回主页</button>
         </div>
 
-        <!-- ================= 4. 全部物品界面 ================= -->
+        <!-- ================= 4. 全部物品 ================= -->
         <div id="page-all-items" class="page">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-left: 10px; padding-right: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
                 <h3>全部物品</h3>
-                <input type="text" id="search-input" oninput="renderItemsList()" placeholder="搜索物品名称或分类..." style="width: 60%; padding: 8px 12px; border-radius: 12px; border: 1px solid #eee; background: #fff; font-size: 14px; outline: none;">
+                <div style="display: flex; align-items: center;">
+                    <input type="text" id="search-input" oninput="renderItemsList()" placeholder="搜索..." style="width: 120px; padding: 8px 12px; border-radius: 12px; border: 1px solid #eee; background: #fff; font-size: 14px; outline: none; margin-right: 10px;">
+                    <span onclick="toggleFilterMenu()" style="font-size: 24px; cursor: pointer; line-height: 1;">⋯</span>
+                </div>
             </div>
-            <!-- 存放物品列表的容器 -->
+
+            <!-- 筛选过滤菜单 -->
+            <div id="filter-menu" style="display: none; position: absolute; right: 20px; top: 80px; background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 15px; z-index: 1000; min-width: 220px;">
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">筛选</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button class="filter-btn" data-filter-type="all" onclick="setFilterType('all')">全部</button>
+                        <button class="filter-btn" data-filter-type="expiring" onclick="setFilterType('expiring')">快过期</button>
+                        <button class="filter-btn" data-filter-type="warranty" onclick="setFilterType('warranty')">快过保</button>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">过滤</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button class="filter-btn" data-filter-status="all" onclick="setFilterStatus('all')">全部</button>
+                        <button class="filter-btn" data-filter-status="expired" onclick="setFilterStatus('expired')">已过期</button>
+                        <button class="filter-btn" data-filter-status="not-expired" onclick="setFilterStatus('not-expired')">未过期</button>
+                        <button class="filter-btn" data-filter-status="warranty-expired" onclick="setFilterStatus('warranty-expired')">已过保</button>
+                        <button class="filter-btn" data-filter-status="not-warranty-expired" onclick="setFilterStatus('not-warranty-expired')">未过保</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="items-list"></div>
         </div>
 
-        <!-- ================= 5. 随礼记录界面 ================= -->
+        <!-- ================= 5. 随礼记录（列表页） ================= -->
         <div id="page-gift-record" class="page">
-            <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
                 <h3>随礼记录</h3>
-                <p style="color:#999; text-align:center; margin-top:20px;">功能开发中...</p>
+                <input type="text" id="gift-search-input" oninput="renderGiftList()" placeholder="搜索随礼人..." style="width: 60%; padding: 8px 12px; border-radius: 12px; border: 1px solid #eee; background: #fff; font-size: 14px; outline: none;">
+            </div>
+            <div id="gift-list"></div>
+        </div>
+
+        <!-- ================= 6. 增加随礼（新随礼人） ================= -->
+        <div id="page-add-gift" class="page">
+            <div class="card">
+                <h3>增加随礼记录</h3>
+                <div class="form-group">
+                    <label>随礼人</label>
+                    <input type="text" id="gift-person" placeholder="例如：张三" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>随礼事件</label>
+                    <input type="text" id="gift-event" placeholder="例如：结婚、满月" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>礼金数额</label>
+                    <input type="number" id="gift-amount" placeholder="例如：500" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>时间</label>
+                    <input type="text" id="gift-date" readonly inputmode="none" placeholder="点击选择时间" class="form-input" onclick="openDatePicker('gift-date')" onfocus="this.blur()">
+                </div>
+                <div class="form-group">
+                    <label>地点</label>
+                    <input type="text" id="gift-location" placeholder="例如：北京" class="form-input">
+                </div>
+                <button class="btn-primary" onclick="saveGiftPerson()">保存记录</button>
+                <button class="btn-secondary" onclick="switchPage('page-gift-record')">取消并返回</button>
             </div>
         </div>
-        
+
+        <!-- ================= 7. 随礼详情页 ================= -->
+        <div id="page-gift-detail" class="page">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
+                <div style="display: flex; align-items: center;">
+                    <span onclick="switchPage('page-gift-record')" style="font-size: 24px; margin-right: 10px; cursor: pointer;">←</span>
+                    <h3 id="detail-person-name">张三</h3>
+                </div>
+                <span onclick="showAddEventPage()" style="font-size: 28px; color: #1abc9c; cursor: pointer; font-weight: bold;">+</span>
+            </div>
+            <div id="gift-event-list"></div>
+        </div>
+
+        <!-- ================= 8. 增加随礼事件（针对已有随礼人） ================= -->
+        <div id="page-add-event" class="page">
+            <div class="card">
+                <h3 id="event-form-title">增加随礼事件</h3>
+                <div class="form-group">
+                    <label>随礼事件</label>
+                    <input type="text" id="event-name" placeholder="例如：乔迁、生子" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>礼金数额</label>
+                    <input type="number" id="event-amount" placeholder="例如：300" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>时间</label>
+                    <input type="text" id="event-date" readonly inputmode="none" placeholder="点击选择时间" class="form-input" onclick="openDatePicker('event-date')" onfocus="this.blur()">
+                </div>
+                <div class="form-group">
+                    <label>地点</label>
+                    <input type="text" id="event-location" placeholder="例如：上海" class="form-input">
+                </div>
+                <button class="btn-primary" onclick="saveGiftEvent()">保存事件</button>
+                <button class="btn-secondary" onclick="switchPage('page-gift-detail')">取消并返回</button>
+            </div>
+        </div>
+
     </div>
 
     <!-- 自定义平铺日期选择器弹窗 -->

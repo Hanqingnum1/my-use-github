@@ -308,3 +308,151 @@ body {
     background: #ffebeb;
     color: #e74c3c;
 }
+/* =============== 随礼记录相关样式 =============== */
+
+/* 随礼列表卡片 */
+.gift-card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    margin-bottom: 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.gift-card:active { background: #fafafa; }
+.gift-person-name {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+}
+.gift-total {
+    font-size: 14px;
+    color: #e84393;
+    font-weight: bold;
+}
+
+/* 随礼详情页的事件卡片 */
+.event-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+    margin-bottom: 12px;
+    border-left: 5px solid #e84393; /* 粉色左侧边条 */
+}
+.event-header {
+    font-size: 15px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+}
+.event-info {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 4px;
+}
+.event-info:last-child { margin-bottom: 0; }
+/* =============== 新增：筛选按钮和随礼事件标签 =============== */
+
+/* 筛选过滤菜单按钮 */
+.filter-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #f9f9f9;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.filter-btn.active {
+    background: #1abc9c;
+    color: white;
+    border-color: #1abc9c;
+}
+
+/* 随礼列表卡片内的事件预览标签 */
+.gift-events-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.event-tag {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    color: #333;
+    font-weight: 500;
+}
+
+/* 让 filter-menu 里的按钮更好看 */
+#filter-menu .filter-btn {
+    margin: 2px;
+}
+/* =============== 新增：粉色渐变卡片 =============== */
+.hero-gift {
+    background: linear-gradient(135deg, #fd79a8, #e84393) !important;
+    box-shadow: 0 6px 20px rgba(232, 67, 147, 0.3) !important;
+    margin-top: -4px; /* 调整与上方卡片的间距 */
+}
+
+/* =============== 新增：随礼列表卡片布局重写 =============== */
+.gift-card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 16px 18px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+    margin-bottom: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.gift-card:active { background: #fafafa; }
+
+/* 左侧信息区（名字 + 事件标签） */
+.gift-info-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1; /* 占据剩余空间 */
+}
+
+.gift-person-name {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+}
+
+.gift-events-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.event-tag {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    color: #333;
+    font-weight: 500;
+}
+
+/* 右侧总金额 */
+.gift-total {
+    font-size: 15px;
+    color: #e84393;
+    font-weight: bold;
+    white-space: nowrap; /* 金额不换行 */
+    margin-left: 10px;
+}
+
+/* 过滤菜单按钮高亮 */
+.filter-btn.active {
+    background: #1abc9c;
+    color: white;
+    border-color: #1abc9c;
+}

@@ -46,20 +46,21 @@
             <label>物品价格：</label>
             <input type="number" placeholder="例如：299">
             <br><br>
-            
-             <!-- 新增：购买时间 -->
+
+            <!-- 新增：购买时间 -->
             <label>购买时间：</label>
             <input type="text" id="purchase-date" readonly placeholder="点击选择购买时间" onclick="openDatePicker('purchase-date')">
             <br><br>
 
+            <!-- 保质期 -->
             <label>物品保质期：</label>
-            <input type="date">
+            <input type="text" id="expiry-date" readonly placeholder="点击选择保质期" onclick="openDatePicker('expiry-date')">
             <br><br>
 
             <!-- 质保期 -->
             <div id="warranty-box" style="display: none;">
                 <label>物品质保期：</label>
-                <input type="date">
+                <input type="text" id="warranty-date" readonly placeholder="点击选择质保期" onclick="openDatePicker('warranty-date')">
                 <br><br>
             </div>
 
@@ -98,5 +99,21 @@
     </nav>
 
     <script src="app.js"></script>
+    
+    <!-- 自定义平铺日期选择器弹窗 -->
+    <div id="date-picker-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:flex-end;">
+        <div style="background:white; width:100%; max-width:500px; border-radius:12px 12px 0 0; padding:20px; box-sizing:border-box; max-height:80vh; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-weight:bold; font-size:16px;">
+                <span id="picker-title">选择年份</span>
+                <span onclick="closeDatePicker()" style="cursor:pointer; color:#999; font-size:22px; line-height:1;">×</span>
+            </div>
+            <div id="picker-body" style="display:flex; flex-wrap:wrap; gap:10px; overflow-y:auto; justify-content:center; padding-bottom:10px; min-height:200px;">
+                <!-- 平铺选项会由JS自动生成 -->
+            </div>
+            <div style="text-align:right; border-top:1px solid #eee; padding-top:15px; margin-top:10px;">
+                <button onclick="selectToday()" style="padding:10px 20px; background:#28a745; color:white; border:none; border-radius:6px; font-size:16px; font-weight:bold; cursor:pointer;">今日</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

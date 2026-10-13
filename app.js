@@ -60,3 +60,81 @@ function saveItem() {
     alert('保存功能还没写，下一步我们就来实现它！');
     switchTab('home');
 }
+// ================= 自定义平铺日期选择器 =================
+let currentInputId = null;
+let selectedYear = null;
+let selectedMonth = null;
+let selectedDay = null;
+let pickerStep = 'year'; // 步骤：'year' -> 'month' -> 'day'
+
+// 打开弹窗
+function openDatePicker(inputId) {
+    currentInputId = inputId;
+    pickerStep = 'year';
+    selectedYear = null;
+    selectedMonth = null;
+    selectedDay = null;
+    document.getElementById('date-picker-modal').style.display = 'flex';
+    renderPickerBody();
+}
+
+// 关闭弹窗
+function closeDatePicker() {
+    document.getElementById('date-picker-modal').style.display = 'none';
+}
+
+// 渲染平铺选项
+function renderPickerBody() {
+    const body = document.getElementById('picker-body');
+    const title = document.getElementById('picker-title');
+    body.innerHTML = '';
+
+    if (pickerStep === 'year') {
+        title.innerText = '1. 选择年份';
+        const currentYear = new Date().getFullYear();
+        for (let y = currentYear - 10; y <= currentYear + 10; y++) {
+            const div = document.createElement('div');
+            div.style.cssText = 'width:calc(25% - 10px); padding:12px 0; text-align:center; border:1px solid #ddd; border-radius:8px; cursor:pointer; background:#f9f9f9; font-size:14px;';
+            div.innerText = y + '年';
+            div.onclick = () => { selectedYear = y; pickerStep = 'month'; renderPickerBody(); };
+            body.appendChild(div);
+        }
+    } else if (pickerStep === 'month') {
+        title.innerText = selectedYear + '年 2. 选择月份';
+        for (let m = 1; m <= 12; m++) {
+            const div = document.createElement('div');
+            div.style.cssText = 'width:calc(25% - 10px); padding:12px 0; text-align:center; border:1px solid #ddd; border-radius:8px; cursor:pointer; background:#f9f9f9; font-size:14px;';
+            div.innerText = m + '月';
+            div.onclick = () => { selectedMonth = m; pickerStep = 'day'; renderPickerBody(); };
+            body.appendChild(div);
+        }
+    } else if (pickerStep === 'day') {
+        title.innerText = selectedYear + '年' + selectedMonth + '月 3. 选择日期';
+        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+            const div = document.createElement('div');
+            div.style.cssText = 'width:calc(25% - 10px); padding:12px 0; text-align:center; border:1px solid #ddd; border-radius:8px; cursor:pointer; background:#f9f9f9; font-size:14px;';
+            div.innerText = d + '日';
+            div.onclick = () => { selectedDay = d; confirmDate(); };
+            body.appendChild(div);
+        }
+    }
+}
+
+// 点击今日按钮
+function selectToday() {
+    const today = new Date();
+    selectedYear = today.getFullYear();
+    selectedMonth = today.getMonth() + 1;
+    selectedDay = today.getDate();
+    confirmDate();
+}
+
+// 确认回填
+function confirmDate() {
+    if (selectedYear && selectedMonth && selectedDay) {
+        const formatted = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+        document.getElementById(currentInputId).value = formatted;
+    }
+    closeDatePicker();
+}

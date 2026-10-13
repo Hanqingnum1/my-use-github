@@ -35,19 +35,17 @@
                 </div>
             </div>
 
-            <!-- 图例卡片 -->
             <div class="card">
                 <h3>物品概览</h3>
                 <p style="color:#999; font-size:14px; margin-top:10px;">点击上方“物品分布”查看详细扇形图</p>
             </div>
         </div>
 
-        <!-- ================= 2. 增加物品界面 ================= -->
+        <!-- ================= 2. 增加/编辑物品界面 ================= -->
         <div id="page-add" class="page">
             <div class="card">
-                <h3>增加物品</h3>
+                <h3 id="form-title">增加物品</h3>
                 
-
                 <div class="form-group">
                     <label>上传图片（支持拍照/相册）</label>
                     <input type="file" id="item-image" accept="image/*" class="form-input">
@@ -86,7 +84,6 @@
 
                 <div class="form-group">
                     <label>购买时间</label>
-                    <!-- 注意：这里加了 inputmode="none" 和 onfocus="this.blur()" 专门对付鸿蒙系统 -->
                     <input type="text" id="purchase-date" readonly inputmode="none" placeholder="点击选择购买时间" class="form-input" onclick="openDatePicker('purchase-date')" onfocus="this.blur()">
                 </div>
 
@@ -100,12 +97,12 @@
                     <input type="text" id="warranty-date" readonly inputmode="none" placeholder="点击选择质保期" class="form-input" onclick="openDatePicker('warranty-date')" onfocus="this.blur()">
                 </div>
 
-                <button class="btn-primary" onclick="saveItem()">保存物品</button>
+                <button class="btn-primary" id="save-btn" onclick="saveItem()">保存物品</button>
                 <button class="btn-secondary" onclick="switchPage('page-home')">取消并返回</button>
             </div>
         </div>
 
-                <!-- ================= 3. 物品分布界面 ================= -->
+        <!-- ================= 3. 物品分布界面 ================= -->
         <div id="page-distribution" class="page">
             <div class="card">
                 <h3>物品分布</h3>
@@ -115,8 +112,11 @@
         </div>
 
         <!-- ================= 4. 全部物品界面 ================= -->
-         <div id="page-all-items" class="page">
-            <h3 style="margin-bottom: 15px; padding-left: 10px;">全部物品</h3>
+        <div id="page-all-items" class="page">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-left: 10px; padding-right: 10px;">
+                <h3>全部物品</h3>
+                <input type="text" id="search-input" oninput="renderItemsList()" placeholder="搜索物品名称或分类..." style="width: 60%; padding: 8px 12px; border-radius: 12px; border: 1px solid #eee; background: #fff; font-size: 14px; outline: none;">
+            </div>
             <!-- 存放物品列表的容器 -->
             <div id="items-list"></div>
         </div>

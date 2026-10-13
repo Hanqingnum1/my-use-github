@@ -5,6 +5,7 @@ let selectedMonth = null;
 let selectedDay = null;
 let pickerStep = 'year';
 let myChart = null; // ECharts 实例
+let editingItemId = null; // 当前正在编辑的物品ID（为空代表是新增）
 
 // ================= 页面切换逻辑 =================
 function switchPage(pageId) {
@@ -56,11 +57,12 @@ function getItems() {
     return JSON.parse(localStorage.getItem('myItems')) || [];
 }
 
-// 点击保存物品
+// 点击保存（支持新增和编辑）
 function saveItem() {
     const name = document.getElementById('item-name').value;
     const category = document.getElementById('category').value;
     const price = document.getElementById('item-price').value;
+    const quantity = document.getElementById('item-quantity').value || 1;
     const imageFile = document.getElementById('item-image').files[0];
 
     if (!name || !category) {
@@ -68,18 +70,49 @@ function saveItem() {
         return;
     }
 
-    // 处理图片：如果用户选了图片，转换成 Base64
+    // 处理图片逻辑
+    const handleSave = (imageBase64) => {
+        let items = getItems();
+        const purchaseDate = document.getElementById('purchase-date').value;
+        const expiryDate = document.getElementById('expiry-date').value;
+        const warrantyDate = document.getElementById('warranty-date').value;
+
+        if (editingItemId) {
+            // 编辑模式：更新数据
+            const index = items.findIndex(i => i.id === editingItemId);
+            if (index !== -1) {
+                items[index] = { 
+                    ...items[index], 
+                    name, category, price, quantity, 
+                    image: imageBase64 || items[index].image, // 如果没选新图，保留旧图
+                    purchaseDate, expiryDate, warrantyDate 
+                };
+            }
+            alert('修改成功！');
+        } else {
+            // 新增模式
+            const newItem = {
+                id: Date.now(),
+                name, category, price: price || 0, quantity,
+                image: imageBase64, purchaseDate, expiryDate, warrantyDate
+            };
+            items.push(newItem);
+            alert('保存成功！');
+        }
+        
+        localStorage.setItem('myItems', JSON.stringify(items));
+        resetForm();
+        switchPage('page-all-items'); // 保存后直接跳回全部物品列表
+    };
+
     if (imageFile) {
         const reader = new FileReader();
         reader.onload = function(e) {
-            // 压缩图片（防止手机内存爆炸）
-            compressImage(e.target.result, 300, function(compressedBase64) {
-                saveDataToLocal(name, category, price, compressedBase64);
-            });
+            compressImage(e.target.result, 300, handleSave);
         };
         reader.readAsDataURL(imageFile);
     } else {
-        saveDataToLocal(name, category, price, ''); // 没有图片就用空字符串
+        handleSave(''); 
     }
 }
 
@@ -103,34 +136,14 @@ function compressImage(base64Str, maxWidth, callback) {
     };
 }
 
-// 把数据存进 LocalStorage
-function saveDataToLocal(name, category, price, imageBase64) {
-    const items = getItems();
-    const quantity = document.getElementById('item-quantity').value || 1;
-    const newItem = {
-        id: Date.now(),
-        name: name,
-        category: category,
-        price: price || 0,
-        quantity: quantity,
-        image: imageBase64,
-        purchaseDate: document.getElementById('purchase-date').value,
-        expiryDate: document.getElementById('expiry-date').value,
-        warrantyDate: document.getElementById('warranty-date').value
-    };
-    items.push(newItem);
-    localStorage.setItem('myItems', JSON.stringify(items));
-    
-    alert('保存成功！');
-    resetForm();
-    switchPage('page-home');
-}
-
-// 清空表单
+// 清空表单并重置模式
 function resetForm() {
+    editingItemId = null;
+    document.getElementById('form-title').innerText = '增加物品';
+    document.getElementById('save-btn').innerText = '保存物品';
     document.getElementById('item-name').value = '';
     document.getElementById('item-price').value = '';
-    document.getElementById('item-quantity').value = '1'; // 重置为 1
+    document.getElementById('item-quantity').value = '1';
     document.getElementById('item-image').value = '';
     document.getElementById('purchase-date').value = '';
     document.getElementById('expiry-date').value = '';
@@ -139,7 +152,7 @@ function resetForm() {
     document.getElementById('warranty-box').style.display = 'none';
 }
 
-// ================= 渲染主页与列表 =================
+// ================= 渲染主页 =================
 
 // 刷新主页数据
 function updateDashboard() {
@@ -150,7 +163,8 @@ function updateDashboard() {
     document.querySelector('.hero-value').innerText = '¥ ' + totalPrice.toFixed(2);
 }
 
-// 渲染“全部物品”列表
+// ================= 渲染“全部物品”列表（核心逻辑） =================
+
 // 辅助函数：计算距离某个日期还有多少天
 function getDaysRemaining(dateString) {
     if (!dateString) return null;
@@ -163,46 +177,68 @@ function getDaysRemaining(dateString) {
 
 // 渲染“全部物品”列表
 function renderItemsList() {
-    const items = getItems();
+    let items = getItems();
     const container = document.getElementById('items-list');
+    const searchKeyword = document.getElementById('search-input').value.toLowerCase().trim();
     if (!container) return;
-    
+
+    // 1. 搜索过滤
+    if (searchKeyword) {
+        items = items.filter(item => 
+            item.name.toLowerCase().includes(searchKeyword) || 
+            item.category.toLowerCase().includes(searchKeyword)
+        );
+    }
+
     if (items.length === 0) {
         container.innerHTML = '<p style="color:#999;text-align:center; margin-top:50px;">暂无物品数据</p>';
         return;
     }
-    
+
+    // 2. 排序：马上过期或马上过保的排在前面
+    items.sort((a, b) => {
+        const daysToExpiryA = a.expiryDate ? getDaysRemaining(a.expiryDate) : 99999;
+        const daysToExpiryB = b.expiryDate ? getDaysRemaining(b.expiryDate) : 99999;
+        const daysToWarrantyA = a.warrantyDate ? getDaysRemaining(a.warrantyDate) : 99999;
+        const daysToWarrantyB = b.warrantyDate ? getDaysRemaining(b.warrantyDate) : 99999;
+        
+        // 综合取最紧急的天数进行排序（谁最快要到期谁在前面）
+        const minA = Math.min(daysToExpiryA, daysToWarrantyA);
+        const minB = Math.min(daysToExpiryB, daysToWarrantyB);
+        return minA - minB;
+    });
+
     container.innerHTML = '';
+    
+    // 3. 渲染卡片
     items.forEach(item => {
-        // 计算保质期倒计时
+        // 计算过期天数
         const daysToExpiry = getDaysRemaining(item.expiryDate);
-        let expiryText = '未设置';
-        let expiryClass = '';
+        let expiryHtml = '';
         if (daysToExpiry !== null) {
-            if (daysToExpiry < 0) {
-                expiryText = `已过期 ${Math.abs(daysToExpiry)} 天`;
-                expiryClass = 'text-warning';
-            } else {
-                expiryText = `还剩 ${daysToExpiry} 天`;
-                if (daysToExpiry <= 7) expiryClass = 'text-warning'; // 7天内过期标红
-            }
+            const isDanger = daysToExpiry <= 90; // 小于3个月(90天)标红
+            let text = daysToExpiry >= 0 
+                ? `还有 <span class="days-badge ${isDanger ? 'danger' : ''}">${daysToExpiry}天</span> 过期` 
+                : `已过期 <span class="days-badge danger">${Math.abs(daysToExpiry)}天</span>`;
+            expiryHtml = `<div class="item-info-row"><span>📅 距离过期</span><span>${text}</span></div>`;
         }
 
-        // 计算质保期倒计时
-        const daysToWarranty = getDaysRemaining(item.warrantyDate);
-        let warrantyText = '无质保/未设置';
-        let warrantyClass = '';
-        if (daysToWarranty !== null) {
-            if (daysToWarranty < 0) {
-                warrantyText = `已过保 ${Math.abs(daysToWarranty)} 天`;
-                warrantyClass = 'text-warning';
-            } else {
-                warrantyText = `还剩 ${daysToWarranty} 天`;
+        // 计算质保天数（仅家电和电子产品）
+        let warrantyHtml = '';
+        if (item.category === '家电' || item.category === '电子产品') {
+            const daysToWarranty = getDaysRemaining(item.warrantyDate);
+            if (daysToWarranty !== null) {
+                const isDanger = daysToWarranty <= 90;
+                let text = daysToWarranty >= 0 
+                    ? `还有 <span class="days-badge ${isDanger ? 'danger' : ''}">${daysToWarranty}天</span> 过保` 
+                    : `已过保 <span class="days-badge danger">${Math.abs(daysToWarranty)}天</span>`;
+                warrantyHtml = `<div class="item-info-row"><span>🛡️ 距离过质保</span><span>${text}</span></div>`;
             }
         }
 
         const div = document.createElement('div');
         div.className = 'item-card';
+        div.setAttribute('onclick', `editItem(${item.id})`); // 点击卡片跳转编辑
         div.innerHTML = `
             <div class="item-header">
                 <div class="item-title">
@@ -211,17 +247,37 @@ function renderItemsList() {
                 </div>
                 <div class="item-category-tag">${item.category}</div>
             </div>
-            <div class="item-info-row">
-                <span>📅 距离过期</span>
-                <span class="${expiryClass}">${expiryText}</span>
-            </div>
-            <div class="item-info-row">
-                <span>🛡️ 距离过质保</span>
-                <span class="${warrantyClass}">${warrantyText}</span>
-            </div>
+            ${expiryHtml}
+            ${warrantyHtml}
         `;
         container.appendChild(div);
     });
+}
+
+// 点击卡片，跳转到编辑页面
+function editItem(id) {
+    const items = getItems();
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    editingItemId = id; // 标记正在编辑
+    document.getElementById('form-title').innerText = '编辑物品';
+    document.getElementById('save-btn').innerText = '保存修改';
+
+    // 回填数据
+    document.getElementById('item-name').value = item.name || '';
+    document.getElementById('item-price').value = item.price || '';
+    document.getElementById('item-quantity').value = item.quantity || 1;
+    document.getElementById('category').value = item.category || '';
+    document.getElementById('purchase-date').value = item.purchaseDate || '';
+    document.getElementById('expiry-date').value = item.expiryDate || '';
+    document.getElementById('warranty-date').value = item.warrantyDate || '';
+    
+    // 触发质保期显示逻辑
+    toggleWarranty();
+    
+    // 跳转到表单页
+    switchPage('page-add');
 }
 
 // ================= ECharts 环形图（真实数据版） =================

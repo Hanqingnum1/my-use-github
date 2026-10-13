@@ -220,7 +220,9 @@ body {
     border: none; border-radius: 12px; font-size: 15px;
     font-weight: bold; cursor: pointer;
 }
-/* 物品列表样式 */
+
+/* =============== 新增：物品列表与搜索相关样式 =============== */
+
 /* 物品列表独立卡片样式 */
 .item-card {
     background: #ffffff;
@@ -229,7 +231,9 @@ body {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
     margin-bottom: 12px;
     position: relative;
+    cursor: pointer;
 }
+.item-card:active { background: #fafafa; }
 
 .item-header {
     display: flex;
@@ -268,6 +272,7 @@ body {
 .item-info-row {
     display: flex;
     justify-content: space-between;
+    align-items: center; /* 确保徽章和文字对齐 */
     font-size: 13px;
     color: #888;
     margin-bottom: 6px;
@@ -281,6 +286,25 @@ body {
     font-weight: 500;
 }
 
-.text-warning {
-    color: #e74c3c !important; /* 已过期或快过期的红色 */
+/* 搜索框的 placeholder 颜色 */
+#search-input::placeholder {
+    color: #bbb;
+}
+
+/* 倒计时天数徽章样式 */
+.days-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #f0f0f0;
+    color: #666;
+    font-size: 12px;
+    margin: 0 4px;
+    font-weight: bold;
+}
+
+/* 小于3个月（90天）标红样式 */
+.days-badge.danger {
+    background: #ffebeb;
+    color: #e74c3c;
 }

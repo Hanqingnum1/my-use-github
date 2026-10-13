@@ -1,12 +1,21 @@
-// 点击“增加物品”按钮时，切换界面
+// 点击“物品”按钮时，切换界面
 function showAddForm() {
     document.getElementById('home-page').style.display = 'none';
     document.getElementById('add-form').style.display = 'block';
 }
 
+// 点击“物品分布”按钮
+function showDistribution() {
+    document.getElementById('home-page').style.display = 'none';
+    document.getElementById('distribution-page').style.display = 'block';
+}
+
 // 点击“返回主页”按钮
 function goHome() {
+    // 把所有非主页的页面都隐藏掉
     document.getElementById('add-form').style.display = 'none';
+    document.getElementById('distribution-page').style.display = 'none';
+    // 显示主页
     document.getElementById('home-page').style.display = 'block';
 }
 
@@ -15,11 +24,10 @@ function toggleWarranty() {
     const category = document.getElementById('category').value;
     const warrantyBox = document.getElementById('warranty-box');
     
-    // 如果选的是家电或电子产品，就显示质保期
     if (category === '家电' || category === '电子产品') {
         warrantyBox.style.display = 'block';
     } else {
-        warrantyBox.style.display = 'none'; // 其他分类隐藏质保期
+        warrantyBox.style.display = 'none';
     }
 }
 

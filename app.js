@@ -56,6 +56,13 @@ let allItemsSortDir = 'desc'; // asc | desc
 // 物品编辑页
 let editingItemImages = ['', '', ''];
 let selectedCategoryName = '';
+let giftPhotos = ['', '', ''];
+let eventPhotos = ['', '', ''];
+let giftTopFilter = '';           // '' | 'gift' | 'receive'
+let giftCategoryFilter = '';      // '' 或事件类型
+let giftSort = 'default';
+let giftSortDir = 'desc';
+let giftView = 'list';
 
 // 图标选择相关
 let iconSrcImage = null;
@@ -93,12 +100,28 @@ function switchPage(pageId) {
         renderItemsList();
     } else if (pageId === 'page-gift-record') {
         document.getElementById('nav-gift').classList.add('active');
+        giftTopFilter = '';
+        giftCategoryFilter = '';
+        const gc = document.getElementById('stat-gift-card');
+        const rc = document.getElementById('stat-receive-card');
+        if (gc) gc.classList.remove('active');
+        if (rc) rc.classList.remove('active');
+        const sw = document.getElementById('gift-search-bar-wrapper');
+        const si = document.getElementById('gift-search-input');
+        if (sw) sw.style.display = 'none';
+        if (si) si.value = '';
         renderGiftList();
-    } else if (pageId === 'page-important-dates') {
+    }else if (pageId === 'page-important-dates') {
         document.getElementById('nav-important').classList.add('active');
         backToCalendar();
         } else if (['page-add','page-add-gift','page-gift-detail','page-add-event','page-add-important','page-important-detail','page-profile','page-theme','page-backup','page-lock','page-about','page-event-detail','page-diary-edit'].includes(pageId)) {
         document.getElementById('nav-home').classList.add('active');
+        }
+    // 底部导航只在4个主页面显示
+    const mainPages = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates'];
+    const nav = document.querySelector('.bottom-nav');
+    if (nav) {
+        nav.style.display = mainPages.includes(pageId) ? 'flex' : 'none';
     }
     window.scrollTo(0, 0);
 }
@@ -538,6 +561,78 @@ function selectItemStatus(v) {
     document.querySelectorAll('#page-add .chip[data-status]').forEach(c => {
         c.classList.toggle('active', c.dataset.status === v);
     });
+}
+
+// 金额选择
+function selectGiftAmount(amount, context) {
+    const pageId = context === 'gift' ? 'page-add-gift' : 'page-add-event';
+    const inputId = context === 'gift' ? 'gift-amount' : 'event-amount';
+    const input = document.getElementById(inputId);
+    const chips = document.querySelectorAll(`#${pageId} .amount-chips .chip`);
+    chips.forEach(c => c.classList.remove('active'));
+
+    if (amount === 'other') {
+        input.style.display = 'block';
+        input.value = '';
+        input.focus();
+        chips.forEach(c => { if (c.dataset.amount === 'other') c.classList.add('active'); });
+    } else {
+        input.style.display = 'none';
+        input.value = amount;
+        chips.forEach(c => { if (c.dataset.amount == amount) c.classList.add('active'); });
+    }
+}
+
+// 随礼照片
+function triggerGiftUpload(i) { document.getElementById('gift-image-' + i).click(); }
+function uploadGiftPhoto(i, input) {
+    if (!input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => compressImage(e.target.result, 500, (b64) => {
+        giftPhotos[i] = b64; renderGiftPhotoSlot(i);
+    });
+    reader.readAsDataURL(input.files[0]);
+}
+function renderGiftPhotoSlot(i) {
+    const p = document.getElementById('gift-image-preview-' + i);
+    const ph = document.getElementById('gift-upload-placeholder-' + i);
+    const rb = document.getElementById('gift-image-remove-' + i);
+    if (!p) return;
+    if (giftPhotos[i]) { p.src = giftPhotos[i]; p.style.display='block'; if(ph) ph.style.display='none'; if(rb) rb.style.display='flex'; }
+    else { p.style.display='none'; if(ph) ph.style.display='flex'; if(rb) rb.style.display='none'; }
+}
+function removeGiftPhoto(i, ev) {
+    if (ev) ev.stopPropagation();
+    giftPhotos[i] = '';
+    const input = document.getElementById('gift-image-' + i);
+    if (input) input.value = '';
+    renderGiftPhotoSlot(i);
+}
+
+// 事件照片
+function triggerEventUpload(i) { document.getElementById('event-image-' + i).click(); }
+function uploadEventPhoto(i, input) {
+    if (!input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => compressImage(e.target.result, 500, (b64) => {
+        eventPhotos[i] = b64; renderEventPhotoSlot(i);
+    });
+    reader.readAsDataURL(input.files[0]);
+}
+function renderEventPhotoSlot(i) {
+    const p = document.getElementById('event-image-preview-' + i);
+    const ph = document.getElementById('event-upload-placeholder-' + i);
+    const rb = document.getElementById('event-image-remove-' + i);
+    if (!p) return;
+    if (eventPhotos[i]) { p.src = eventPhotos[i]; p.style.display='block'; if(ph) ph.style.display='none'; if(rb) rb.style.display='flex'; }
+    else { p.style.display='none'; if(ph) ph.style.display='flex'; if(rb) rb.style.display='none'; }
+}
+function removeEventPhoto(i, ev) {
+    if (ev) ev.stopPropagation();
+    eventPhotos[i] = '';
+    const input = document.getElementById('event-image-' + i);
+    if (input) input.value = '';
+    renderEventPhotoSlot(i);
 }
 
 // ================= 物品 =================
@@ -1108,54 +1203,222 @@ function saveGiftPerson() {
     const amount = document.getElementById('gift-amount').value;
     const date = document.getElementById('gift-date').value;
     const location = document.getElementById('gift-location').value.trim();
+    const remark = document.getElementById('gift-remark').value.trim();
     if (!person || !event || !amount) { alert('请填写随礼人、事件和金额！'); return; }
+
+    const photos = giftPhotos.filter(x => x);
     let records = getGiftRecords();
     let existing = records.find(r => r.person === person);
-    const newEvent = { id: Date.now(), event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼' };
+    const newEvent = { id: Date.now(), event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼', remark, photos, image: photos[0] || '' };
     if (existing) existing.events.push(newEvent);
     else records.push({ id: Date.now(), person, events: [newEvent] });
     localStorage.setItem('myGiftRecords', JSON.stringify(records));
     alert('保存成功！');
-    ['gift-person','gift-event','gift-amount','gift-date','gift-location'].forEach(id => document.getElementById(id).value = '');
+
+    // 重置
+    ['gift-person','gift-event','gift-date','gift-location','gift-remark'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('gift-amount').value = '';
+    document.getElementById('gift-amount').style.display = 'none';
     document.querySelectorAll('#page-add-gift .chip').forEach(c => c.classList.remove('active'));
+    giftPhotos = ['', '', ''];
+    for (let i = 0; i < 3; i++) {
+        const inp = document.getElementById('gift-image-' + i);
+        if (inp) inp.value = '';
+        renderGiftPhotoSlot(i);
+    }
     switchPage('page-gift-record');
 }
 
+// ================= 随礼列表 =================
+function updateGiftStats() {
+    const records = getGiftRecords();
+    let giftCount = 0, giftAmount = 0, receiveCount = 0, receiveAmount = 0;
+    records.forEach(r => {
+        r.events.forEach(e => {
+            const t = e.type || '随礼';
+            if (t === '收礼') { receiveCount++; receiveAmount += (e.amount || 0); }
+            else { giftCount++; giftAmount += (e.amount || 0); }
+        });
+    });
+    const gn = document.getElementById('stat-gift-num');
+    const ga = document.getElementById('stat-gift-amount');
+    const rn = document.getElementById('stat-receive-num');
+    const ra = document.getElementById('stat-receive-amount');
+    if (gn) gn.textContent = giftCount;
+    if (ga) ga.textContent = '¥' + giftAmount;
+    if (rn) rn.textContent = receiveCount;
+    if (ra) ra.textContent = '¥' + receiveAmount;
+}
+
+function updateGiftCategoryOptions() {
+    const select = document.getElementById('gift-filter-category');
+    if (!select) return;
+    const current = select.value;
+    while (select.options.length > 1) select.remove(1);
+    const records = getGiftRecords();
+    const categories = new Set();
+    records.forEach(r => r.events.forEach(e => categories.add(e.event)));
+    Array.from(categories).sort().forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        select.appendChild(opt);
+    });
+    select.value = current;
+}
+
+function selectGiftTopCard(type) {
+    giftTopFilter = (giftTopFilter === type) ? '' : type;
+    const g = document.getElementById('stat-gift-card');
+    const r = document.getElementById('stat-receive-card');
+    if (g) g.classList.toggle('active', giftTopFilter === 'gift');
+    if (r) r.classList.toggle('active', giftTopFilter === 'receive');
+    renderGiftList();
+}
+
+function setGiftCategory(v) { giftCategoryFilter = v; renderGiftList(); }
+function setGiftSort(v) { giftSort = v; renderGiftList(); }
+
+function toggleGiftSortDir() {
+    giftSortDir = giftSortDir === 'desc' ? 'asc' : 'desc';
+    const btn = document.getElementById('gift-sort-dir-btn');
+    if (giftSortDir === 'desc') {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
+    } else {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+    }
+    renderGiftList();
+}
+
+function toggleGiftViewMode() {
+    giftView = giftView === 'list' ? 'tile' : 'list';
+    const btn = document.getElementById('gift-view-toggle-btn');
+    if (giftView === 'list') {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+    } else {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>';
+    }
+    renderGiftList();
+}
+
+function toggleGiftSearchBar() {
+    const w = document.getElementById('gift-search-bar-wrapper');
+    w.style.display = w.style.display === 'none' ? 'block' : 'none';
+    if (w.style.display === 'block') document.getElementById('gift-search-input').focus();
+}
+
 function renderGiftList() {
+    updateGiftStats();
+    updateGiftCategoryOptions();
+
     const records = getGiftRecords();
     const container = document.getElementById('gift-list');
-    const kw = document.getElementById('gift-search-input').value.toLowerCase().trim();
     if (!container) return;
-    let filtered = kw ? records.filter(r => r.person.toLowerCase().includes(kw)) : records;
-    if (filtered.length === 0) { container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">暂无随礼记录</p>'; return; }
+
+    // 搜索关键词
+    const searchInput = document.getElementById('gift-search-input');
+    const kw = (searchInput?.value || '').toLowerCase().trim();
+
+    // 每个人只保留符合条件的事件
+    let processed = records.map(r => {
+        // 人名匹配
+        const personMatch = !kw || (r.person || '').toLowerCase().includes(kw);
+        let events = r.events.slice();
+
+        // 事件名或备注匹配
+        if (kw) {
+            events = events.filter(e =>
+                (e.event || '').toLowerCase().includes(kw) ||
+                (e.remark || '').toLowerCase().includes(kw) ||
+                (e.location || '').toLowerCase().includes(kw)
+            );
+        }
+        if (giftTopFilter === 'gift') events = events.filter(e => (e.type || '随礼') === '随礼');
+        else if (giftTopFilter === 'receive') events = events.filter(e => e.type === '收礼');
+        if (giftCategoryFilter) events = events.filter(e => e.event === giftCategoryFilter);
+
+        // 如果人名匹配，即使事件没匹配也显示
+        if (personMatch && kw && events.length === 0) {
+            events = r.events.filter(e => {
+                if (giftTopFilter === 'gift' && (e.type || '随礼') !== '随礼') return false;
+                if (giftTopFilter === 'receive' && e.type !== '收礼') return false;
+                if (giftCategoryFilter && e.event !== giftCategoryFilter) return false;
+                return true;
+            });
+        }
+        return { ...r, filteredEvents: events, personMatch };
+    }).filter(r => r.filteredEvents.length > 0 || r.personMatch && kw);
+
+    // 排序
+    processed.sort((a, b) => {
+        let r = 0;
+        if (giftSort === 'amount') {
+            const sa = a.filteredEvents.reduce((s, e) => s + (e.amount || 0), 0);
+            const sb = b.filteredEvents.reduce((s, e) => s + (e.amount || 0), 0);
+            r = sb - sa;
+        } else if (giftSort === 'name') {
+            r = (a.person || '').localeCompare(b.person || '');
+        } else if (giftSort === 'date') {
+            const ta = Math.max(...a.filteredEvents.map(e => new Date(e.date || 0).getTime()));
+            const tb = Math.max(...b.filteredEvents.map(e => new Date(e.date || 0).getTime()));
+            r = tb - ta;
+        } else {
+            r = b.id - a.id;
+        }
+        return giftSortDir === 'asc' ? -r : r;
+    });
+
+    container.className = giftView === 'tile' ? 'items-list-tile' : 'items-list-list';
+
+    if (processed.length === 0) {
+        container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">暂无匹配的记录</p>';
+        return;
+    }
     container.innerHTML = '';
 
-    // 收礼 = 绿系，随礼 = 红系（与详情页一致）
-    const giftColors    = ['#fadbd8', '#f5b7b1', '#f1948a', '#e6b0aa'];  // 红系
-    const receiveColors = ['#d5f4e6', '#a9dfbf', '#7dcea0', '#a2d9ce'];  // 绿系
+    const giftColors    = ['#fadbd8', '#f5b7b1', '#f1948a', '#e6b0aa'];
+    const receiveColors = ['#d5f4e6', '#a9dfbf', '#7dcea0', '#a2d9ce'];
 
-    filtered.forEach(record => {
-        let total = 0;
-        record.events.forEach(e => total += e.amount);
+    processed.forEach(record => {
+        const total = record.filteredEvents.reduce((s, e) => s + (e.amount || 0), 0);
+        const firstChar = (record.person || '?').charAt(0);
+        const count = record.filteredEvents.length;
 
+        // 事件标签
         let tagsHtml = '';
         let redIdx = 0, greenIdx = 0;
-        record.events.forEach(ev => {
+        record.filteredEvents.slice(0, 6).forEach(ev => {
             let bg;
-            if (ev.type === '收礼') {
-                bg = receiveColors[greenIdx % receiveColors.length];
-                greenIdx++;
-            } else {
-                bg = giftColors[redIdx % giftColors.length];
-                redIdx++;
-            }
-            tagsHtml += `<span class="event-tag" style="background: ${bg};">${ev.event} ¥${ev.amount}</span>`;
+            if (ev.type === '收礼') { bg = receiveColors[greenIdx % receiveColors.length]; greenIdx++; }
+            else { bg = giftColors[redIdx % giftColors.length]; redIdx++; }
+            tagsHtml += `<span class="mini-tag" style="background:${bg};color:#333;">${ev.event} ¥${ev.amount}</span>`;
         });
+        if (record.filteredEvents.length > 6) {
+            tagsHtml += `<span class="mini-tag" style="background:#eee;color:#888;">+${record.filteredEvents.length - 6}</span>`;
+        }
 
         const div = document.createElement('div');
-        div.className = 'gift-card';
         div.setAttribute('onclick', `showGiftDetail(${record.id})`);
-        div.innerHTML = `<div class="gift-info-left"><div class="gift-person-name">${record.person}</div><div class="gift-events-preview">${tagsHtml}</div></div><div class="gift-total">共 ¥${total}</div>`;
+
+        if (giftView === 'tile') {
+            div.className = 'item-tile';
+            div.innerHTML = `
+                <div class="gift-avatar-tile">${firstChar}</div>
+                <div class="tile-name">${record.person}</div>
+                <div class="tile-tags">${tagsHtml}</div>
+                <div class="tile-price">¥${total}</div>
+            `;
+        } else {
+            div.className = 'item-card-new';
+            div.innerHTML = `
+                <div class="gift-avatar">${firstChar}</div>
+                <div class="item-info-new">
+                    <div class="item-name-new">${record.person} <span class="item-qty-new">${count} 笔</span></div>
+                    <div class="item-tag-row">${tagsHtml}</div>
+                </div>
+                <div class="gift-total-new">¥${total}</div>
+            `;
+        }
         container.appendChild(div);
     });
 }
@@ -1257,41 +1520,35 @@ function saveGiftEvent() {
     const amount = document.getElementById('event-amount').value;
     const date = document.getElementById('event-date').value;
     const location = document.getElementById('event-location').value.trim();
+    const remark = document.getElementById('event-remark').value.trim();
     if (!event || !amount) { alert('请填写事件和金额！'); return; }
 
     let records = getGiftRecords();
     const record = records.find(r => r.id === currentGiftPersonId);
     if (!record) return;
 
+    const photos = eventPhotos.filter(x => x);
+
     if (editingEventId) {
-        // 编辑模式：更新已有事件
         const idx = record.events.findIndex(e => e.id === editingEventId);
         if (idx !== -1) {
-            record.events[idx] = {
-                ...record.events[idx],
-                event,
-                amount: parseFloat(amount),
-                date,
-                location,
-                type: selectedGiftType || '随礼'
-            };
+            record.events[idx] = { ...record.events[idx], event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼', remark, photos, image: photos[0] || record.events[idx].image };
         }
         alert('修改成功！');
         editingEventId = null;
     } else {
-        // 新增模式
-        record.events.push({
-            id: Date.now(),
-            event,
-            amount: parseFloat(amount),
-            date,
-            location,
-            type: selectedGiftType || '随礼'
-        });
+        record.events.push({ id: Date.now(), event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼', remark, photos, image: photos[0] || '' });
         alert('事件添加成功！');
     }
 
     localStorage.setItem('myGiftRecords', JSON.stringify(records));
+    // 重置
+    eventPhotos = ['', '', ''];
+    for (let i = 0; i < 3; i++) {
+        const inp = document.getElementById('event-image-' + i);
+        if (inp) inp.value = '';
+        renderEventPhotoSlot(i);
+    }
     renderGiftEventList();
     switchPage('page-gift-detail');
 }
@@ -1459,19 +1716,42 @@ function renderCalendar() {
 
 function selectCalDay(dateStr) {
     if (isLongPress) { isLongPress = false; return; }
-    const dates = getImportantDates().filter(d => d.date === dateStr);
     const detail = document.getElementById('important-detail-card');
-    if (dates.length === 0) { detail.style.display = 'none'; return; }
+    const dates = getImportantDates().filter(d => d.date === dateStr);
+    const diaries = getDiaries().filter(d => d.date === dateStr);
+
+    if (dates.length === 0 && diaries.length === 0) { detail.style.display = 'none'; return; }
+
     let html = '';
-    dates.forEach(d => {
-        html += `<div class="important-card level-${d.level}" onclick="showImportantDetail(${d.id})">
-            <div class="important-card-header">
-                <span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${d.event}</span>
-                <span class="important-card-level">${d.level}</span>
-            </div>
-            <div class="important-card-date">${d.date}</div>
-        </div>`;
-    });
+    if (dates.length > 0) {
+        html += '<div class="cal-detail-section">📌 重要事件</div>';
+        dates.forEach(d => {
+            html += `<div class="important-card level-${d.level}" onclick="showImportantDetail(${d.id})">
+                <div class="important-card-header">
+                    <span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${d.event}</span>
+                    <span class="important-card-level">${d.level}</span>
+                </div>
+                <div class="important-card-date">${d.date}</div>
+            </div>`;
+        });
+    }
+    if (diaries.length > 0) {
+        html += '<div class="cal-detail-section">📔 日记 / 便签</div>';
+        diaries.sort((a, b) => b.createdAt - a.createdAt);
+        diaries.forEach(d => {
+            const icon = d.type === '日记' ? '📔' : '📝';
+            const time = new Date(d.createdAt);
+            const timeStr = `${String(time.getHours()).padStart(2,'0')}:${String(time.getMinutes()).padStart(2,'0')}`;
+            html += `<div class="diary-card" onclick="editDiary(${d.id})">
+                <div class="diary-card-header">
+                    <span class="diary-card-type">${icon} ${d.type}</span>
+                    <span class="diary-card-time">${timeStr}</span>
+                </div>
+                ${d.title ? `<div class="diary-card-title">${d.title}</div>` : ''}
+                <div class="diary-card-content">${(d.content || '').replace(/</g,'&lt;')}</div>
+            </div>`;
+        });
+    }
     detail.innerHTML = html;
     detail.style.display = 'block';
 }
@@ -1849,6 +2129,11 @@ window.addEventListener('load', () => {
     renderBookProgress();
     renderCategoryGrid();
     renderAcquireGrid();
+    for (let i = 0; i < 3; i++) { renderGiftPhotoSlot(i); renderEventPhotoSlot(i); }
+        // 所有返回箭头 ← 换成 <
+    document.querySelectorAll('.back-arrow').forEach(el => {
+        if (el.textContent.trim() === '←') el.textContent = '<';
+    });
 });
 
 // ================= 日记/便签 =================
@@ -1892,6 +2177,7 @@ function openDiaryPanel(dateStr) {
 function closeDiaryPanel() {
     document.getElementById('diary-panel').classList.remove('open');
     document.getElementById('diary-panel-overlay').classList.remove('open');
+    if (diaryPanelDate) selectCalDay(diaryPanelDate);
 }
 
 function renderDiaryPanel(dateStr) {

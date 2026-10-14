@@ -1537,6 +1537,7 @@ function renderDiaryPanel(dateStr) {
 }
 
 function showTemplateModal() {
+    closeDiaryPanel();    // ← 加这一行
     currentDiaryType = '日记';
     document.getElementById('type-chip-diary').classList.add('active');
     document.getElementById('type-chip-note').classList.remove('active');

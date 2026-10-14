@@ -44,6 +44,14 @@ let currentDiaryTemplate = null;  // 当前选中的模板
 let editingDiaryId = null;        // 正在编辑的日记 ID
 let isLongPress = false;          // 长按标志
 let longPressTimer = null;        // 长按计时器
+// 全部物品页面状态
+let allItemsTopFilter = '';       // '' | 'held' | 'expiring' | 'warranty'
+let allItemsFilter = 'all';
+let allItemsCategory = '';
+let allItemsSort = 'default';
+let allItemsView = 'list';        // list | tile
+let selectedAcquire = '网购';
+let selectedItemStatus = '持有中';
 
 // 图标选择相关
 let iconSrcImage = null;
@@ -77,6 +85,7 @@ function switchPage(pageId) {
         setTimeout(initGiftChart, 100);
     } else if (pageId === 'page-all-items') {
         document.getElementById('nav-all-items').classList.add('active');
+        updateItemStats();
         renderItemsList();
     } else if (pageId === 'page-gift-record') {
         document.getElementById('nav-gift').classList.add('active');
@@ -511,21 +520,34 @@ function selectEventChip2(type) {
     document.querySelectorAll('#page-add-event .chip').forEach(c => c.classList.toggle('active', c.dataset.type === type));
 }
 
-function selectGiftType(type) {
-    selectedGiftType = type;
-    document.querySelectorAll('#page-add-gift .chip[data-gift-type]').forEach(c => {
-        c.classList.toggle('active', c.dataset.giftType === type);
+function selectAcquire(v) {
+    selectedAcquire = v;
+    document.querySelectorAll('#page-add .chip[data-acquire]').forEach(c => {
+        c.classList.toggle('active', c.dataset.acquire === v);
     });
-    document.querySelectorAll('#page-add-event .chip[data-gift-type]').forEach(c => {
-        c.classList.toggle('active', c.dataset.giftType === type);
+}
+
+function selectItemStatus(v) {
+    selectedItemStatus = v;
+    document.querySelectorAll('#page-add .chip[data-status]').forEach(c => {
+        c.classList.toggle('active', c.dataset.status === v);
     });
 }
 
 // ================= 物品 =================
-function toggleWarranty() {
+function toggleDateFields() {
     const cat = document.getElementById('category').value;
-    document.getElementById('warranty-box').style.display = (cat === '家电' || cat === '电子产品') ? 'block' : 'none';
+    const expiryBox = document.getElementById('expiry-box');
+    const warrantyBox = document.getElementById('warranty-box');
+    expiryBox.style.display = 'none';
+    warrantyBox.style.display = 'none';
+    if (cat === '家电' || cat === '电子产品') {
+        warrantyBox.style.display = 'block';
+    } else if (cat === '食品' || cat === '厨房食材' || cat === '护肤品' || cat === '化妆品') {
+        expiryBox.style.display = 'block';
+    }
 }
+
 function getItems() { return JSON.parse(localStorage.getItem('myItems')) || []; }
 
 function saveItem() {
@@ -542,12 +564,14 @@ function saveItem() {
         const purchaseDate = document.getElementById('purchase-date').value;
         const expiryDate = document.getElementById('expiry-date').value;
         const warrantyDate = document.getElementById('warranty-date').value;
+        const status = selectedItemStatus || '持有中';
+        const acquireMethod = selectedAcquire || '网购';
         if (editingItemId) {
             const idx = items.findIndex(i => i.id === editingItemId);
-            if (idx !== -1) items[idx] = { ...items[idx], name, category, price, quantity, image: imageBase64 || items[idx].image, purchaseDate, expiryDate, warrantyDate };
+            if (idx !== -1) items[idx] = { ...items[idx], name, category, price, quantity, image: imageBase64 || items[idx].image, purchaseDate, expiryDate, warrantyDate, status, acquireMethod };
             alert('修改成功！');
         } else {
-            items.push({ id: Date.now(), name, category, price: price || 0, quantity, image: imageBase64, purchaseDate, expiryDate, warrantyDate });
+            items.push({ id: Date.now(), name, category, price: price || 0, quantity, image: imageBase64, purchaseDate, expiryDate, warrantyDate, status, acquireMethod });
             alert('保存成功！');
         }
         localStorage.setItem('myItems', JSON.stringify(items));
@@ -580,7 +604,16 @@ function resetForm() {
     ['item-name','item-price','item-image','purchase-date','expiry-date','warranty-date'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('item-quantity').value = '1';
     document.getElementById('category').value = '';
+    document.getElementById('expiry-box').style.display = 'none';
     document.getElementById('warranty-box').style.display = 'none';
+    selectedAcquire = '网购';
+    selectedItemStatus = '持有中';
+    document.querySelectorAll('#page-add .chip[data-acquire]').forEach(c => {
+        c.classList.toggle('active', c.dataset.acquire === '网购');
+    });
+    document.querySelectorAll('#page-add .chip[data-status]').forEach(c => {
+        c.classList.toggle('active', c.dataset.status === '持有中');
+    });
 }
 
 function updateDashboard() {
@@ -613,55 +646,176 @@ function updateFilterButtons() {
     });
 }
 
+// ================= 全部物品页面逻辑 =================
+function getItemStatus(item) { return item.status || '持有中'; }
+function getItemAcquire(item) { return item.acquireMethod || '网购'; }
+
+function isHeld(item) {
+    if (getItemStatus(item) === '已移除') return false;
+    const d = getDaysRemaining(item.expiryDate);
+    if (d !== null && d < 0) return false;
+    return true;
+}
+function isExpiringSoon(item) {
+    const cat = item.category;
+    const d = getDaysRemaining(item.expiryDate);
+    if (d === null || d < 0) return false;
+    if (cat === '食品' || cat === '厨房食材') return d <= 60;
+    if (cat === '护肤品' || cat === '化妆品') return d <= 180;
+    return false;
+}
+function isWarrantyExpiringSoon(item) {
+    const cat = item.category;
+    if (cat !== '家电' && cat !== '电子产品') return false;
+    const d = getDaysRemaining(item.warrantyDate);
+    if (d === null || d < 0) return false;
+    return d <= 180;
+}
+
+function updateItemStats() {
+    const items = getItems().filter(i => getItemStatus(i) !== '已移除');
+    const heldItems = getItems().filter(isHeld);
+    const pausedCount = heldItems.filter(i => getItemStatus(i) === '暂离中').length;
+    const heldNum = document.getElementById('stat-held-num');
+    const extra = document.getElementById('stat-held-extra');
+    const expNum = document.getElementById('stat-expiring-num');
+    const warNum = document.getElementById('stat-warranty-num');
+    if (heldNum) heldNum.textContent = heldItems.length;
+    if (extra) extra.textContent = pausedCount > 0 ? `暂离 ${pausedCount}` : '';
+    if (expNum) expNum.textContent = items.filter(isExpiringSoon).length;
+    if (warNum) warNum.textContent = items.filter(isWarrantyExpiringSoon).length;
+}
+
+function selectTopCard(type) {
+    allItemsTopFilter = (allItemsTopFilter === type) ? '' : type;
+    const h = document.getElementById('stat-held');
+    const e = document.getElementById('stat-expiring');
+    const w = document.getElementById('stat-warranty');
+    if (h) h.classList.toggle('active', allItemsTopFilter === 'held');
+    if (e) e.classList.toggle('active', allItemsTopFilter === 'expiring');
+    if (w) w.classList.toggle('active', allItemsTopFilter === 'warranty');
+    renderItemsList();
+}
+
+function setAllItemsFilter(v) { allItemsFilter = v; renderItemsList(); }
+function setAllItemsCategory(v) { allItemsCategory = v; renderItemsList(); }
+function setAllItemsSort(v) { allItemsSort = v; renderItemsList(); }
+
+function toggleViewMode() {
+    allItemsView = allItemsView === 'list' ? 'tile' : 'list';
+    document.getElementById('view-toggle-btn').textContent = allItemsView === 'list' ? '☰' : '▦';
+    renderItemsList();
+}
+
+function toggleSearchBar() {
+    const w = document.getElementById('search-bar-wrapper');
+    w.style.display = w.style.display === 'none' ? 'block' : 'none';
+    if (w.style.display === 'block') document.getElementById('search-input').focus();
+}
+
 function renderItemsList() {
     let items = getItems();
     const container = document.getElementById('items-list');
-    const kw = document.getElementById('search-input').value.toLowerCase().trim();
     if (!container) return;
-    if (kw) items = items.filter(i => i.name.toLowerCase().includes(kw) || i.category.toLowerCase().includes(kw));
-    if (filterType === 'expiring') items = items.filter(i => { const d = getDaysRemaining(i.expiryDate); return d !== null && d >= 0 && d <= 90; });
-    else if (filterType === 'warranty') items = items.filter(i => { if (i.category !== '家电' && i.category !== '电子产品') return false; const d = getDaysRemaining(i.warrantyDate); return d !== null && d >= 0 && d <= 90; });
-    if (filterStatus === 'expired') items = items.filter(i => { const d = getDaysRemaining(i.expiryDate); return d !== null && d < 0; });
-    else if (filterStatus === 'not-expired') items = items.filter(i => { const d = getDaysRemaining(i.expiryDate); return d === null || d >= 0; });
-    else if (filterStatus === 'warranty-expired') items = items.filter(i => { if (i.category !== '家电' && i.category !== '电子产品') return false; const d = getDaysRemaining(i.warrantyDate); return d !== null && d < 0; });
-    else if (filterStatus === 'not-warranty-expired') items = items.filter(i => { if (i.category !== '家电' && i.category !== '电子产品') return true; const d = getDaysRemaining(i.warrantyDate); return d === null || d >= 0; });
 
-    if (items.length === 0) { container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">暂无匹配的物品</p>'; return; }
+    const searchInput = document.getElementById('search-input');
+    const kw = (searchInput?.value || '').toLowerCase().trim();
+    if (kw) items = items.filter(i => (i.name || '').toLowerCase().includes(kw) || (i.category || '').toLowerCase().includes(kw));
+
+    if (allItemsTopFilter === 'held') items = items.filter(isHeld);
+    else if (allItemsTopFilter === 'expiring') items = items.filter(isExpiringSoon);
+    else if (allItemsTopFilter === 'warranty') items = items.filter(isWarrantyExpiringSoon);
+
+    if (allItemsFilter === 'expired') {
+        items = items.filter(i => { const d = getDaysRemaining(i.expiryDate); return d !== null && d < 0; });
+    } else if (allItemsFilter === 'warranty-expired') {
+        items = items.filter(i => { const d = getDaysRemaining(i.warrantyDate); return d !== null && d < 0; });
+    } else if (allItemsFilter === 'held') {
+        items = items.filter(i => getItemStatus(i) === '持有中');
+    } else if (allItemsFilter === 'paused') {
+        items = items.filter(i => getItemStatus(i) === '暂离中');
+    } else if (allItemsFilter === 'removed') {
+        items = items.filter(i => getItemStatus(i) === '已移除');
+    }
+
+    if (allItemsCategory) items = items.filter(i => i.category === allItemsCategory);
+
     items.sort((a, b) => {
-        const dA = a.expiryDate ? getDaysRemaining(a.expiryDate) : 99999;
-        const dB = b.expiryDate ? getDaysRemaining(b.expiryDate) : 99999;
-        const wA = a.warrantyDate ? getDaysRemaining(a.warrantyDate) : 99999;
-        const wB = b.warrantyDate ? getDaysRemaining(b.warrantyDate) : 99999;
-        return Math.min(dA, wA) - Math.min(dB, wB);
+        if (allItemsSort === 'purchase-desc') return (b.purchaseDate || '').localeCompare(a.purchaseDate || '');
+        if (allItemsSort === 'price-desc') return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+        if (allItemsSort === 'price-asc') return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+        if (allItemsSort === 'name') return (a.name || '').localeCompare(b.name || '');
+        if (allItemsSort === 'expiry') {
+            const dA = getDaysRemaining(a.expiryDate); const dB = getDaysRemaining(b.expiryDate);
+            return (dA === null ? 99999 : dA) - (dB === null ? 99999 : dB);
+        }
+        return b.id - a.id;
     });
+
+    container.className = allItemsView === 'tile' ? 'items-list-tile' : 'items-list-list';
+
+    if (items.length === 0) {
+        container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">暂无匹配的物品</p>';
+        return;
+    }
     container.innerHTML = '';
+    const placeholder = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjY2MiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiPjwvcmVjdD48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSI+PC9jaXJjbGU+PHBvbHlsaW5lIHBvaW50cz0iMjEgMTUgMTYgMTAgNSAyMSI+PC9wb2x5bGluZT48L3N2Zz4=';
+
     items.forEach(item => {
-        const dExp = getDaysRemaining(item.expiryDate);
-        let expiryHtml = '';
-        if (dExp !== null) {
-            const danger = dExp <= 90;
-            const text = dExp >= 0 ? `还有 <span class="days-badge ${danger ? 'danger' : ''}">${dExp}天</span> 过期` : `已过期 <span class="days-badge danger">${Math.abs(dExp)}天</span>`;
-            expiryHtml = `<div class="item-info-row">📅 ${text}</div>`;
-        }
-        let warrantyHtml = '';
-        if (item.category === '家电' || item.category === '电子产品') {
-            const dWar = getDaysRemaining(item.warrantyDate);
-            if (dWar !== null) {
-                const danger = dWar <= 90;
-                const text = dWar >= 0 ? `还有 <span class="days-badge ${danger ? 'danger' : ''}">${dWar}天</span> 过保` : `已过保 <span class="days-badge danger">${Math.abs(dWar)}天</span>`;
-                warrantyHtml = `<div class="item-info-row">🛡️ ${text}</div>`;
-            }
-        }
         const div = document.createElement('div');
-        div.className = 'item-card';
+        div.className = allItemsView === 'tile' ? 'item-tile' : 'item-card-new';
         div.setAttribute('onclick', `editItem(${item.id})`);
-        div.innerHTML = `
-            <div class="item-header">
-                <div class="item-title">${item.name} <span class="item-quantity">x${item.quantity}</span></div>
-                <div class="item-category-tag">${item.category}</div>
-            </div>
-            ${expiryHtml}${warrantyHtml}
-        `;
+
+        const imgSrc = item.image || placeholder;
+        const status = getItemStatus(item);
+        let statusClass = 'status-held';
+        if (status === '暂离中') statusClass = 'status-paused';
+        else if (status === '已移除') statusClass = 'status-removed';
+        const acquire = getItemAcquire(item);
+
+        const dExp = getDaysRemaining(item.expiryDate);
+        const dWar = getDaysRemaining(item.warrantyDate);
+        let expBadge = '';
+        if (dExp !== null) {
+            const danger = dExp <= 60;
+            expBadge = dExp >= 0
+                ? `<span class="mini-badge ${danger?'mini-danger':''}">还有${dExp}天过期</span>`
+                : `<span class="mini-badge mini-danger">已过期${Math.abs(dExp)}天</span>`;
+        }
+        let warBadge = '';
+        if (dWar !== null) {
+            const danger = dWar <= 180;
+            warBadge = dWar >= 0
+                ? `<span class="mini-badge ${danger?'mini-danger':''}">还有${dWar}天过保</span>`
+                : `<span class="mini-badge mini-danger">已过保${Math.abs(dWar)}天</span>`;
+        }
+
+        if (allItemsView === 'tile') {
+            div.innerHTML = `
+                <img src="${imgSrc}" class="tile-img">
+                <div class="tile-name">${item.name}</div>
+                <div class="tile-tags">
+                    <span class="mini-tag category">${item.category}</span>
+                    <span class="mini-tag ${statusClass}">${status}</span>
+                </div>
+                <div class="tile-price">¥${item.price || 0}</div>
+                <div class="tile-badges">${expBadge}${warBadge}</div>
+            `;
+        } else {
+            div.innerHTML = `
+                <img src="${imgSrc}" class="item-img-new">
+                <div class="item-info-new">
+                    <div class="item-name-new">${item.name} <span class="item-qty-new">x${item.quantity}</span></div>
+                    <div class="item-tag-row">
+                        <span class="mini-tag category">${item.category}</span>
+                        <span class="mini-tag ${statusClass}">${status}</span>
+                        <span class="mini-tag acquire">${acquire}</span>
+                        <span class="mini-tag price">¥${item.price || 0}</span>
+                    </div>
+                    <div class="item-badge-row">${expBadge}${warBadge}</div>
+                </div>
+            `;
+        }
         container.appendChild(div);
     });
 }
@@ -677,7 +831,17 @@ function editItem(id) {
     document.getElementById('purchase-date').value = item.purchaseDate || '';
     document.getElementById('expiry-date').value = item.expiryDate || '';
     document.getElementById('warranty-date').value = item.warrantyDate || '';
-    toggleWarranty();
+
+    selectedAcquire = item.acquireMethod || '网购';
+    document.querySelectorAll('#page-add .chip[data-acquire]').forEach(c => {
+        c.classList.toggle('active', c.dataset.acquire === selectedAcquire);
+    });
+    selectedItemStatus = item.status || '持有中';
+    document.querySelectorAll('#page-add .chip[data-status]').forEach(c => {
+        c.classList.toggle('active', c.dataset.status === selectedItemStatus);
+    });
+
+    toggleDateFields();
     switchPage('page-add');
 }
 

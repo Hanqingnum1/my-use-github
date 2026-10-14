@@ -57,20 +57,46 @@
     <div class="card">
         <div class="form-group"><label>上传图片</label><input type="file" id="item-image" accept="image/*" class="form-input"></div>
         <div class="form-group"><label>物品分类</label>
-            <select id="category" onchange="toggleWarranty()" class="form-input">
+            <select id="category" onchange="toggleDateFields()" class="form-input">
                 <option value="">请选择分类</option>
-                <option value="家电">家电</option><option value="电子产品">电子产品</option>
-                <option value="食品">食品</option><option value="护肤品">护肤品</option>
-                <option value="化妆品">化妆品</option><option value="生活用品">生活用品</option>
-                <option value="书本">书本</option><option value="学习资料">学习资料</option>
+                <option value="家电">家电</option>
+                <option value="电子产品">电子产品</option>
+                <option value="食品">食品</option>
+                <option value="厨房食材">厨房食材</option>
+                <option value="护肤品">护肤品</option>
+                <option value="化妆品">化妆品</option>
+                <option value="生活用品">生活用品</option>
+                <option value="书本">书本</option>
+                <option value="学习资料">学习资料</option>
                 <option value="手办">手办</option>
             </select>
         </div>
         <div class="form-group"><label>物品名称</label><input type="text" id="item-name" placeholder="例如：吹风机" class="form-input"></div>
         <div class="form-group"><label>物品价格</label><input type="number" id="item-price" placeholder="例如：299" class="form-input"></div>
         <div class="form-group"><label>物品个数</label><input type="number" id="item-quantity" value="1" min="1" class="form-input"></div>
+
+        <div class="form-group">
+            <label>获得渠道</label>
+            <div class="event-chips">
+                <button class="chip" data-acquire="网购" onclick="selectAcquire('网购')">网购</button>
+                <button class="chip" data-acquire="线下" onclick="selectAcquire('线下')">线下</button>
+                <button class="chip" data-acquire="赠送" onclick="selectAcquire('赠送')">赠送</button>
+                <button class="chip" data-acquire="白嫖" onclick="selectAcquire('白嫖')">白嫖</button>
+                <button class="chip" data-acquire="其他" onclick="selectAcquire('其他')">其他</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>物品状态</label>
+            <div class="event-chips">
+                <button class="chip" data-status="持有中" onclick="selectItemStatus('持有中')">持有中</button>
+                <button class="chip" data-status="暂离中" onclick="selectItemStatus('暂离中')">暂离中</button>
+                <button class="chip" data-status="已移除" onclick="selectItemStatus('已移除')">已移除</button>
+            </div>
+        </div>
+
         <div class="form-group"><label>购买时间</label><input type="text" id="purchase-date" readonly inputmode="none" placeholder="点击选择" class="form-input" onclick="openDatePicker('purchase-date')" onfocus="this.blur()"></div>
-        <div class="form-group"><label>物品保质期</label><input type="text" id="expiry-date" readonly inputmode="none" placeholder="点击选择" class="form-input" onclick="openDatePicker('expiry-date')" onfocus="this.blur()"></div>
+        <div class="form-group" id="expiry-box" style="display: none;"><label>物品保质期</label><input type="text" id="expiry-date" readonly inputmode="none" placeholder="点击选择" class="form-input" onclick="openDatePicker('expiry-date')" onfocus="this.blur()"></div>
         <div class="form-group" id="warranty-box" style="display: none;"><label>物品质保期</label><input type="text" id="warranty-date" readonly inputmode="none" placeholder="点击选择" class="form-input" onclick="openDatePicker('warranty-date')" onfocus="this.blur()"></div>
         <button class="btn-primary" id="save-btn" onclick="saveItem()">保存物品</button>
         <button class="btn-secondary" onclick="switchPage('page-home')">取消并返回</button>
@@ -79,37 +105,73 @@
 
 <!-- ============ 3. 全部物品 ============ -->
 <div id="page-all-items" class="page">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding:0 10px;">
+    <!-- 第一行：标题 + 搜索图标 -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 6px;">
         <h3>全部物品</h3>
-        <div style="display:flex;align-items:center;">
-            <input type="text" id="search-input" oninput="renderItemsList()" placeholder="搜索..." style="width:120px;padding:8px 12px;border-radius:12px;border:1px solid #eee;background:#fff;font-size:14px;outline:none;margin-right:10px;">
-            <span onclick="toggleFilterMenu()" style="font-size:24px;cursor:pointer;line-height:1;">⋯</span>
+        <span onclick="toggleSearchBar()" style="font-size:20px; cursor:pointer;">🔍</span>
+    </div>
+
+    <!-- 搜索框（默认收起） -->
+    <div id="search-bar-wrapper" style="display:none; margin-bottom:12px;">
+        <input type="text" id="search-input" oninput="renderItemsList()" placeholder="搜索物品名称或分类..." class="form-input">
+    </div>
+
+    <!-- 顶部三卡片 -->
+    <div class="top-stats-row">
+        <div class="stat-card" id="stat-held" onclick="selectTopCard('held')">
+            <div class="stat-num" id="stat-held-num">0</div>
+            <div class="stat-label">持有</div>
+            <div class="stat-extra" id="stat-held-extra"></div>
+        </div>
+        <div class="stat-card" id="stat-expiring" onclick="selectTopCard('expiring')">
+            <div class="stat-num" id="stat-expiring-num">0</div>
+            <div class="stat-label">快过期</div>
+        </div>
+        <div class="stat-card" id="stat-warranty" onclick="selectTopCard('warranty')">
+            <div class="stat-num" id="stat-warranty-num">0</div>
+            <div class="stat-label">快过保</div>
         </div>
     </div>
-    <div id="filter-menu" style="display:none;position:absolute;right:20px;top:80px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.15);padding:15px;z-index:1000;min-width:220px;">
-        <div style="margin-bottom:15px;">
-            <div style="font-weight:bold;margin-bottom:8px;font-size:14px;">筛选</div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                <button class="filter-btn" data-filter-type="all" onclick="setFilterType('all')">全部</button>
-                <button class="filter-btn" data-filter-type="expiring" onclick="setFilterType('expiring')">快过期</button>
-                <button class="filter-btn" data-filter-type="warranty" onclick="setFilterType('warranty')">快过保</button>
-            </div>
-        </div>
-        <div>
-            <div style="font-weight:bold;margin-bottom:8px;font-size:14px;">过滤</div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                <button class="filter-btn" data-filter-status="all" onclick="setFilterStatus('all')">全部</button>
-                <button class="filter-btn" data-filter-status="expired" onclick="setFilterStatus('expired')">已过期</button>
-                <button class="filter-btn" data-filter-status="not-expired" onclick="setFilterStatus('not-expired')">未过期</button>
-                <button class="filter-btn" data-filter-status="warranty-expired" onclick="setFilterStatus('warranty-expired')">已过保</button>
-                <button class="filter-btn" data-filter-status="not-warranty-expired" onclick="setFilterStatus('not-warranty-expired')">未过保</button>
-            </div>
-        </div>
-        <div style="margin-top:15px; padding-top:15px; border-top:1px solid #eee;">
-            <button class="filter-btn" style="width:100%; padding:10px; font-size:13px;" onclick="toggleFilterMenu(); switchPage('page-item-distribution')">📊 查看物品分布</button>
-        </div>
+
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+        <select id="filter-all" onchange="setAllItemsFilter(this.value)" class="filter-select">
+            <option value="all">全部</option>
+            <option value="expired">已过期</option>
+            <option value="warranty-expired">已过保</option>
+            <option value="held">持有</option>
+            <option value="paused">暂离</option>
+            <option value="removed">移除</option>
+        </select>
+        <select id="filter-category" onchange="setAllItemsCategory(this.value)" class="filter-select">
+            <option value="">全部分类</option>
+            <option value="家电">家电</option>
+            <option value="电子产品">电子产品</option>
+            <option value="食品">食品</option>
+            <option value="厨房食材">厨房食材</option>
+            <option value="护肤品">护肤品</option>
+            <option value="化妆品">化妆品</option>
+            <option value="生活用品">生活用品</option>
+            <option value="书本">书本</option>
+            <option value="学习资料">学习资料</option>
+            <option value="手办">手办</option>
+        </select>
+        <select id="filter-sort" onchange="setAllItemsSort(this.value)" class="filter-select">
+            <option value="default">默认</option>
+            <option value="purchase-desc">购买日期</option>
+            <option value="price-desc">价格↓</option>
+            <option value="price-asc">价格↑</option>
+            <option value="name">名称</option>
+            <option value="expiry">过期倒计时</option>
+        </select>
+        <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">☰</button>
     </div>
-    <div id="items-list"></div>
+
+    <!-- 物品列表 -->
+    <div id="items-list" class="items-list-list"></div>
+
+    <!-- 悬浮添加按钮 -->
+    <button class="floating-add-btn" onclick="switchPage('page-add')">+ 添加物品</button>
 </div>
 
 <!-- ============ 4. 随礼记录 ============ -->

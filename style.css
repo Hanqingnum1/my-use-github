@@ -411,3 +411,112 @@ body.dark-mode .progress-bar-bg {
 }
 .template-icon { font-size: 28px; margin-bottom: 6px; }
 .template-name { font-size: 12px; color: var(--text-main); }
+
+/* =============== 全部物品页面 =============== */
+.top-stats-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.stat-card {
+    flex: 1; background: var(--card-bg); border-radius: 16px;
+    padding: 14px 8px; text-align: center; cursor: pointer;
+    border: 2px solid transparent;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+    transition: all 0.2s;
+}
+.stat-card.active { border-color: var(--primary); background: var(--primary-light); }
+.stat-num { font-size: 24px; font-weight: bold; color: var(--primary); line-height: 1; }
+.stat-label { font-size: 12px; color: var(--text-sub); margin-top: 5px; }
+.stat-extra { font-size: 10px; color: #999; margin-top: 2px; }
+
+.filter-bar { display: flex; gap: 6px; margin-bottom: 14px; }
+.filter-select {
+    flex: 1; min-width: 0; padding: 10px 4px;
+    border-radius: 10px; border: 1px solid var(--divider);
+    background: var(--card-bg); font-size: 12px;
+    color: var(--text-main); outline: none;
+    -webkit-appearance: none; appearance: none;
+    text-align: center;
+}
+.view-toggle {
+    width: 42px; padding: 0; border-radius: 10px;
+    border: 1px solid var(--divider); background: var(--card-bg);
+    font-size: 18px; color: var(--primary);
+    cursor: pointer; flex-shrink: 0;
+}
+
+/* 列表视图 */
+.items-list-list { display: flex; flex-direction: column; }
+.item-card-new {
+    display: flex; gap: 12px; background: var(--card-bg);
+    border-radius: 16px; padding: 12px; margin-bottom: 10px;
+    cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+    align-items: flex-start;
+}
+.item-card-new:active { opacity: 0.9; }
+.item-img-new {
+    width: 70px; height: 70px; border-radius: 12px;
+    object-fit: cover; background: var(--bg-color); flex-shrink: 0;
+}
+.item-info-new { flex: 1; min-width: 0; }
+.item-name-new {
+    font-size: 15px; font-weight: bold; color: var(--text-main);
+    margin-bottom: 6px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+}
+.item-qty-new { font-size: 11px; color: #999; font-weight: normal; }
+.item-tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.mini-tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 8px;
+    font-weight: 500; line-height: 1.4; white-space: nowrap;
+}
+.mini-tag.category { background: var(--blue-light); color: #5499c7; }
+.mini-tag.status-held { background: var(--green-light); color: #27ae60; }
+.mini-tag.status-paused { background: var(--yellow-light); color: #b7950b; }
+.mini-tag.status-removed { background: #eee; color: #888; }
+.mini-tag.acquire { background: var(--purple-light); color: #7d3c98; }
+.mini-tag.price { background: var(--orange-light); color: #d35400; }
+.item-badge-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.mini-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 8px;
+    background: #f0f0f0; color: #666; font-weight: 500;
+}
+.mini-badge.mini-danger { background: #fadbd8; color: #c0392b; }
+
+/* 平铺视图 */
+.items-list-tile {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+.item-tile {
+    background: var(--card-bg); border-radius: 16px;
+    padding: 10px; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+    display: flex; flex-direction: column;
+}
+.item-tile:active { opacity: 0.9; }
+.tile-img {
+    width: 100%; aspect-ratio: 1 / 1;
+    border-radius: 12px; object-fit: cover;
+    background: var(--bg-color); margin-bottom: 8px;
+}
+.tile-name {
+    font-size: 14px; font-weight: bold; color: var(--text-main);
+    margin-bottom: 6px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+}
+.tile-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.tile-price { font-size: 15px; font-weight: bold; color: var(--primary); margin-bottom: 6px; }
+.tile-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* 悬浮添加按钮 */
+.floating-add-btn {
+    position: fixed;
+    right: max(20px, calc(50% - 250px + 20px));
+    bottom: calc(90px + env(safe-area-inset-bottom));
+    background: var(--primary); color: white;
+    border: none; border-radius: 26px;
+    padding: 12px 22px; font-size: 14px; font-weight: bold;
+    box-shadow: 0 6px 20px rgba(217, 136, 128, 0.4);
+    cursor: pointer; z-index: 998;
+    transition: transform 0.2s;
+}
+.floating-add-btn:active { transform: scale(0.95); }

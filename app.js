@@ -52,6 +52,10 @@ let allItemsSort = 'default';
 let allItemsView = 'list';        // list | tile
 let selectedAcquire = '网购';
 let selectedItemStatus = '持有中';
+let allItemsSortDir = 'desc'; // asc | desc
+// 物品编辑页
+let editingItemImages = ['', '', ''];
+let selectedCategoryName = '';
 
 // 图标选择相关
 let iconSrcImage = null;
@@ -388,18 +392,22 @@ function refreshIconSelection() {
 function applyCustomIcons() {
     const data = getCustomIcons();
     const navKeys = ['home', 'items', 'gift', 'important'];
-    const defaults = ['🏠', '📦', '🎁', '📅'];
+    const defaults = [
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1V9.5z"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'
+    ];
     navKeys.forEach((key, i) => {
         const el = document.getElementById('nav-icon-' + key);
         if (!el) return;
-        // 清空
         el.style.backgroundImage = '';
         el.style.backgroundSize = '';
         el.style.backgroundPosition = '';
         el.style.width = '';
         el.style.height = '';
         el.style.borderRadius = '';
-        el.textContent = '';
+        el.innerHTML = '';
 
         const cell = data.cells[i];
         if (cell && data.src) {
@@ -410,7 +418,7 @@ function applyCustomIcons() {
             el.style.height = '22px';
             el.style.borderRadius = '5px';
         } else {
-            el.textContent = defaults[i];
+            el.innerHTML = defaults[i];
         }
     });
 }
@@ -522,9 +530,7 @@ function selectEventChip2(type) {
 
 function selectAcquire(v) {
     selectedAcquire = v;
-    document.querySelectorAll('#page-add .chip[data-acquire]').forEach(c => {
-        c.classList.toggle('active', c.dataset.acquire === v);
-    });
+    renderAcquireGrid();
 }
 
 function selectItemStatus(v) {
@@ -535,10 +541,68 @@ function selectItemStatus(v) {
 }
 
 // ================= 物品 =================
-function toggleDateFields() {
-    const cat = document.getElementById('category').value;
+// 分类图标配置
+const categoryConfig = [
+    { name: '家电', color: '#4A90A4', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><circle cx="12" cy="16" r="1.5"/></svg>' },
+    { name: '电子产品', color: '#7B68A6', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>' },
+    { name: '食品', color: '#D4A574', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>' },
+    { name: '厨房食材', color: '#7BA05B', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a9 9 0 019 9c0 5-9 11-9 11S3 16 3 11a9 9 0 019-9z"/></svg>' },
+    { name: '护肤品', color: '#E8A4B8', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6v3H9z"/><path d="M7 5h10l1 16H6L7 5z"/></svg>' },
+    { name: '化妆品', color: '#C75B7A', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4v6h-4z"/><path d="M8 8h8l1 14H7L8 8z"/></svg>' },
+    { name: '生活用品', color: '#5DA9A0', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l-1 18H7L6 3z"/><path d="M8 7h8"/></svg>' },
+    { name: '书本', color: '#8B6F47', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a4 4 0 014 4v12H8a4 4 0 00-4 4V4z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/></svg>' },
+    { name: '学习资料', color: '#5B7FA6', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>' },
+    { name: '手办', color: '#D4A82A', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18.5 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg>' }
+];
+
+// 获取方式配置
+const acquireConfig = [
+    { name: '网购', color: '#5B7FA6', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>' },
+    { name: '线下', color: '#7BA05B', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 22V12h6v10"/></svg>' },
+    { name: '赠送', color: '#E8A4B8', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>' },
+    { name: '白嫖', color: '#D4A82A', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18.5 5.5 22 7 14.5 2 9.5 9 9 12 2"/></svg>' },
+    { name: '其他', color: '#9E9E9E', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' }
+];
+
+function renderCategoryGrid() {
+    const grid = document.getElementById('category-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    categoryConfig.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'category-item' + (selectedCategoryName === c.name ? ' active' : '');
+        div.style.setProperty('--cat-color', c.color);
+        div.onclick = () => selectCategoryIcon(c.name);
+        div.innerHTML = `<div class="category-icon">${c.icon}</div><div class="category-name">${c.name}</div>`;
+        grid.appendChild(div);
+    });
+}
+
+function selectCategoryIcon(name) {
+    selectedCategoryName = name;
+    renderCategoryGrid();
+    updateDateFieldsVisibility();
+}
+
+function renderAcquireGrid() {
+    const grid = document.getElementById('acquire-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    acquireConfig.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'category-item' + (selectedAcquire === c.name ? ' active' : '');
+        div.style.setProperty('--cat-color', c.color);
+        div.onclick = () => selectAcquire(c.name);
+        div.innerHTML = `<div class="category-icon">${c.icon}</div><div class="category-name">${c.name}</div>`;
+        grid.appendChild(div);
+    });
+}
+
+function updateDateFieldsVisibility() {
+    const cat = selectedCategoryName;
     const expiryBox = document.getElementById('expiry-box');
     const warrantyBox = document.getElementById('warranty-box');
+    if (!expiryBox || !warrantyBox) return;
     expiryBox.style.display = 'none';
     warrantyBox.style.display = 'none';
     if (cat === '家电' || cat === '电子产品') {
@@ -548,30 +612,115 @@ function toggleDateFields() {
     }
 }
 
+// 图片上传
+function triggerImageUpload(index) {
+    document.getElementById('item-image-' + index).click();
+}
+
+function uploadItemImage(index, input) {
+    if (!input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        compressImage(e.target.result, 500, (b64) => {
+            editingItemImages[index] = b64;
+            renderImageSlot(index);
+        });
+    };
+    reader.readAsDataURL(input.files[0]);
+}
+
+function renderImageSlot(index) {
+    const preview = document.getElementById('item-image-preview-' + index);
+    const placeholder = document.getElementById('upload-placeholder-' + index);
+    const removeBtn = document.getElementById('image-remove-' + index);
+    if (!preview) return;
+    if (editingItemImages[index]) {
+        preview.src = editingItemImages[index];
+        preview.style.display = 'block';
+        if (placeholder) placeholder.style.display = 'none';
+        if (removeBtn) removeBtn.style.display = 'flex';
+    } else {
+        preview.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'flex';
+        if (removeBtn) removeBtn.style.display = 'none';
+    }
+}
+
+function removeItemImage(index, event) {
+    if (event) event.stopPropagation();
+    editingItemImages[index] = '';
+    const input = document.getElementById('item-image-' + index);
+    if (input) input.value = '';
+    renderImageSlot(index);
+}
+
+function renderAllImageSlots() {
+    for (let i = 0; i < 3; i++) renderImageSlot(i);
+}
+
+// 数量
+function changeQuantity(delta) {
+    const input = document.getElementById('item-quantity');
+    let v = parseInt(input.value) || 1;
+    v += delta;
+    if (v < 1) v = 1;
+    if (v > 999) v = 999;
+    input.value = v;
+}
+
+function clampQuantity() {
+    const input = document.getElementById('item-quantity');
+    let v = parseInt(input.value) || 1;
+    if (v < 1) v = 1;
+    if (v > 999) v = 999;
+    input.value = v;
+}
+
 function getItems() { return JSON.parse(localStorage.getItem('myItems')) || []; }
 
 function saveItem() {
-    const name = document.getElementById('item-name').value;
-    const category = document.getElementById('category').value;
+    const name = document.getElementById('item-name').value.trim();
+    const category = selectedCategoryName;
     const price = document.getElementById('item-price').value;
     const quantity = document.getElementById('item-quantity').value || 1;
-    const imageFile = document.getElementById('item-image').files[0];
+    const remark = document.getElementById('item-remark').value.trim();
 
-    if (!name || !category) { alert('请至少填写物品名称和分类！'); return; }
+    if (!name) { alert('请填写物品名称！'); return; }
+    if (!category) { alert('请选择分类！'); return; }
 
-    const handleSave = (imageBase64) => {
+    const images = editingItemImages.filter(x => x);
+    const mainImage = images[0] || '';
+
+    const handleSave = () => {
         let items = getItems();
         const purchaseDate = document.getElementById('purchase-date').value;
         const expiryDate = document.getElementById('expiry-date').value;
         const warrantyDate = document.getElementById('warranty-date').value;
         const status = selectedItemStatus || '持有中';
         const acquireMethod = selectedAcquire || '网购';
+
         if (editingItemId) {
             const idx = items.findIndex(i => i.id === editingItemId);
-            if (idx !== -1) items[idx] = { ...items[idx], name, category, price, quantity, image: imageBase64 || items[idx].image, purchaseDate, expiryDate, warrantyDate, status, acquireMethod };
+            if (idx !== -1) {
+                items[idx] = {
+                    ...items[idx],
+                    name, category, price, quantity,
+                    image: mainImage,
+                    images: images,
+                    purchaseDate, expiryDate, warrantyDate,
+                    status, acquireMethod, remark
+                };
+            }
             alert('修改成功！');
         } else {
-            items.push({ id: Date.now(), name, category, price: price || 0, quantity, image: imageBase64, purchaseDate, expiryDate, warrantyDate, status, acquireMethod });
+            items.push({
+                id: Date.now(),
+                name, category, price: price || 0, quantity,
+                image: mainImage,
+                images: images,
+                purchaseDate, expiryDate, warrantyDate,
+                status, acquireMethod, remark
+            });
             alert('保存成功！');
         }
         localStorage.setItem('myItems', JSON.stringify(items));
@@ -579,11 +728,7 @@ function saveItem() {
         switchPage('page-all-items');
     };
 
-    if (imageFile) {
-        const reader = new FileReader();
-        reader.onload = (e) => compressImage(e.target.result, 300, handleSave);
-        reader.readAsDataURL(imageFile);
-    } else handleSave('');
+    handleSave();
 }
 
 function compressImage(base64Str, maxWidth, callback) {
@@ -601,16 +746,33 @@ function compressImage(base64Str, maxWidth, callback) {
 
 function resetForm() {
     editingItemId = null;
-    ['item-name','item-price','item-image','purchase-date','expiry-date','warranty-date'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('item-edit-title').textContent = '添加物品';
+    document.getElementById('item-submit-text').textContent = '添加物品';
+    document.getElementById('item-name').value = '';
+    document.getElementById('item-price').value = '';
     document.getElementById('item-quantity').value = '1';
-    document.getElementById('category').value = '';
+    document.getElementById('purchase-date').value = '';
+    document.getElementById('expiry-date').value = '';
+    document.getElementById('warranty-date').value = '';
+    document.getElementById('item-remark').value = '';
     document.getElementById('expiry-box').style.display = 'none';
     document.getElementById('warranty-box').style.display = 'none';
+
+    // 清空图片
+    for (let i = 0; i < 3; i++) {
+        editingItemImages[i] = '';
+        const input = document.getElementById('item-image-' + i);
+        if (input) input.value = '';
+    }
+    renderAllImageSlots();
+
+    selectedCategoryName = '';
+    renderCategoryGrid();
+
     selectedAcquire = '网购';
+    renderAcquireGrid();
+
     selectedItemStatus = '持有中';
-    document.querySelectorAll('#page-add .chip[data-acquire]').forEach(c => {
-        c.classList.toggle('active', c.dataset.acquire === '网购');
-    });
     document.querySelectorAll('#page-add .chip[data-status]').forEach(c => {
         c.classList.toggle('active', c.dataset.status === '持有中');
     });
@@ -703,8 +865,41 @@ function setAllItemsSort(v) { allItemsSort = v; renderItemsList(); }
 
 function toggleViewMode() {
     allItemsView = allItemsView === 'list' ? 'tile' : 'list';
-    document.getElementById('view-toggle-btn').textContent = allItemsView === 'list' ? '☰' : '▦';
+    const btn = document.getElementById('view-toggle-btn');
+    if (allItemsView === 'list') {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+    } else {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>';
+    }
     renderItemsList();
+}
+
+function toggleSortDir() {
+    allItemsSortDir = allItemsSortDir === 'desc' ? 'asc' : 'desc';
+    const btn = document.getElementById('sort-dir-btn');
+    if (allItemsSortDir === 'desc') {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
+    } else {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+    }
+    renderItemsList();
+}
+
+function updateCategoryCounts() {
+    const select = document.getElementById('filter-category');
+    if (!select) return;
+    const current = select.value;
+    while (select.options.length > 1) select.remove(1);
+    const cats = ['家电','电子产品','食品','厨房食材','护肤品','化妆品','生活用品','书本','学习资料','手办'];
+    const items = getItems().filter(i => getItemStatus(i) !== '已移除');
+    cats.forEach(cat => {
+        const count = items.filter(i => i.category === cat).length;
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = `${cat}（${count}）`;
+        select.appendChild(opt);
+    });
+    select.value = current;
 }
 
 function toggleSearchBar() {
@@ -714,6 +909,7 @@ function toggleSearchBar() {
 }
 
 function renderItemsList() {
+    updateCategoryCounts();
     let items = getItems();
     const container = document.getElementById('items-list');
     if (!container) return;
@@ -740,16 +936,21 @@ function renderItemsList() {
 
     if (allItemsCategory) items = items.filter(i => i.category === allItemsCategory);
 
-    items.sort((a, b) => {
-        if (allItemsSort === 'purchase-desc') return (b.purchaseDate || '').localeCompare(a.purchaseDate || '');
-        if (allItemsSort === 'price-desc') return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
-        if (allItemsSort === 'price-asc') return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
-        if (allItemsSort === 'name') return (a.name || '').localeCompare(b.name || '');
-        if (allItemsSort === 'expiry') {
+        items.sort((a, b) => {
+        let r = 0;
+        if (allItemsSort === 'purchase-desc') {
+            r = (b.purchaseDate || '').localeCompare(a.purchaseDate || '');
+        } else if (allItemsSort === 'price') {
+            r = (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+        } else if (allItemsSort === 'name') {
+            r = (a.name || '').localeCompare(b.name || '');
+        } else if (allItemsSort === 'expiry') {
             const dA = getDaysRemaining(a.expiryDate); const dB = getDaysRemaining(b.expiryDate);
-            return (dA === null ? 99999 : dA) - (dB === null ? 99999 : dB);
+            r = (dA === null ? 99999 : dA) - (dB === null ? 99999 : dB);
+        } else {
+            r = b.id - a.id;
         }
-        return b.id - a.id;
+        return allItemsSortDir === 'asc' ? -r : r;
     });
 
     container.className = allItemsView === 'tile' ? 'items-list-tile' : 'items-list-list';
@@ -824,24 +1025,43 @@ function editItem(id) {
     const item = getItems().find(i => i.id === id);
     if (!item) return;
     editingItemId = id;
+    document.getElementById('item-edit-title').textContent = '编辑物品';
+    document.getElementById('item-submit-text').textContent = '保存修改';
+
     document.getElementById('item-name').value = item.name || '';
     document.getElementById('item-price').value = item.price || '';
     document.getElementById('item-quantity').value = item.quantity || 1;
-    document.getElementById('category').value = item.category || '';
     document.getElementById('purchase-date').value = item.purchaseDate || '';
     document.getElementById('expiry-date').value = item.expiryDate || '';
     document.getElementById('warranty-date').value = item.warrantyDate || '';
+    document.getElementById('item-remark').value = item.remark || '';
+
+    // 图片兼容：优先用 images 数组，旧数据用单张 image
+    if (item.images && Array.isArray(item.images)) {
+        editingItemImages = [item.images[0] || '', item.images[1] || '', item.images[2] || ''];
+    } else if (item.image) {
+        editingItemImages = [item.image, '', ''];
+    } else {
+        editingItemImages = ['', '', ''];
+    }
+    for (let i = 0; i < 3; i++) {
+        const input = document.getElementById('item-image-' + i);
+        if (input) input.value = '';
+    }
+    renderAllImageSlots();
+
+    selectedCategoryName = item.category || '';
+    renderCategoryGrid();
+    updateDateFieldsVisibility();
 
     selectedAcquire = item.acquireMethod || '网购';
-    document.querySelectorAll('#page-add .chip[data-acquire]').forEach(c => {
-        c.classList.toggle('active', c.dataset.acquire === selectedAcquire);
-    });
+    renderAcquireGrid();
+
     selectedItemStatus = item.status || '持有中';
     document.querySelectorAll('#page-add .chip[data-status]').forEach(c => {
         c.classList.toggle('active', c.dataset.status === selectedItemStatus);
     });
 
-    toggleDateFields();
     switchPage('page-add');
 }
 
@@ -1627,6 +1847,8 @@ window.addEventListener('load', () => {
     refreshDrawerInfo();
     applyCustomIcons();
     renderBookProgress();
+    renderCategoryGrid();
+    renderAcquireGrid();
 });
 
 // ================= 日记/便签 =================

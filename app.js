@@ -17,8 +17,33 @@ let selectedImportantLevel = '提醒';
 let editingImportantId = null;
 let currentImportantDetailId = null;
 let selectedEventChipName = null;
-let pendingWallpaper = null;   // 待确认的壁纸
 let selectedGiftType = '随礼'; // 当前选中的随礼类型
+let currentEventId = null;   // 当前查看的事件 ID
+let editingEventId = null;   // 正在编辑的事件 ID
+// 图形锁相关
+let patternPoints = [];
+let patternSelected = [];
+let patternDrawing = false;
+let patternFirstAttempt = null;   // 第一次绘制的图案（用于二次确认）
+let patternMode = 'set';          // 'set' = 设置新图案, 'verify' = 验证已有图案
+// 壁纸拖动选区相关
+let cropImgSrc = null;
+let cropImgNaturalW = 0;
+let cropImgNaturalH = 0;
+let cropImgDisplayW = 0;
+let cropImgDisplayH = 0;
+let cropImgX = 0;
+let cropImgY = 0;
+let cropDragging = false;
+let cropStartX = 0;
+let cropStartY = 0;
+// 日记/便签相关
+let diaryPanelDate = null;        // 当前日记面板对应的日期
+let currentDiaryType = '日记';     // 日记 or 便签
+let currentDiaryTemplate = null;  // 当前选中的模板
+let editingDiaryId = null;        // 正在编辑的日记 ID
+let isLongPress = false;          // 长按标志
+let longPressTimer = null;        // 长按计时器
 
 // 图标选择相关
 let iconSrcImage = null;
@@ -44,7 +69,12 @@ function switchPage(pageId) {
         updateDashboard();
         renderUpcomingDates();
         renderBookProgress();
-        setTimeout(initCharts, 100);
+    } else if (pageId === 'page-item-distribution') {
+        document.getElementById('nav-all-items').classList.add('active');
+        setTimeout(initItemChart, 100);
+    } else if (pageId === 'page-gift-distribution') {
+        document.getElementById('nav-gift').classList.add('active');
+        setTimeout(initGiftChart, 100);
     } else if (pageId === 'page-all-items') {
         document.getElementById('nav-all-items').classList.add('active');
         renderItemsList();
@@ -54,7 +84,7 @@ function switchPage(pageId) {
     } else if (pageId === 'page-important-dates') {
         document.getElementById('nav-important').classList.add('active');
         backToCalendar();
-    } else if (['page-add','page-add-gift','page-gift-detail','page-add-event','page-add-important','page-important-detail','page-profile','page-theme','page-backup','page-lock','page-about'].includes(pageId)) {
+        } else if (['page-add','page-add-gift','page-gift-detail','page-add-event','page-add-important','page-important-detail','page-profile','page-theme','page-backup','page-lock','page-about','page-event-detail','page-diary-edit'].includes(pageId)) {
         document.getElementById('nav-home').classList.add('active');
     }
     window.scrollTo(0, 0);
@@ -148,33 +178,131 @@ function uploadWallpaper(input) {
     if (!input.files[0]) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-        compressImage(e.target.result, 800, (b64) => {
-            // 把图片存到全局变量，等待用户确认
-            pendingWallpaper = b64;
-            // 显示预览区域
-            const preview = document.getElementById('wallpaper-preview');
-            const img = document.getElementById('wallpaper-preview-img');
-            img.src = b64;
-            preview.style.display = 'block';
+        compressImage(e.target.result, 1200, (b64) => {
+            cropImgSrc = b64;
+            showCropWindow();
         });
     };
     reader.readAsDataURL(input.files[0]);
 }
-function confirmWallpaper() {
-    if (!pendingWallpaper) return;
-    const t = getTheme();
-    t.wallpaper = pendingWallpaper;
-    saveTheme(t);
-    applyTheme();
-    pendingWallpaper = null;
-    document.getElementById('wallpaper-preview').style.display = 'none';
-    alert('壁纸已应用！');
+
+function showCropWindow() {
+    const area = document.getElementById('wallpaper-crop-area');
+    const win = document.getElementById('wallpaper-crop-window');
+    const img = document.getElementById('wallpaper-crop-img');
+    area.style.display = 'block';
+
+    img.onload = () => {
+        cropImgNaturalW = img.naturalWidth;
+        cropImgNaturalH = img.naturalHeight;
+
+        const winW = win.clientWidth;
+        const winH = win.clientHeight;
+
+        // 缩放：让图片至少覆盖窗口（cover 模式）
+        const scale = Math.max(winW / cropImgNaturalW, winH / cropImgNaturalH);
+        cropImgDisplayW = cropImgNaturalW * scale;
+        cropImgDisplayH = cropImgNaturalH * scale;
+
+        img.style.width = cropImgDisplayW + 'px';
+        img.style.height = cropImgDisplayH + 'px';
+
+        // 初始居中
+        cropImgX = (winW - cropImgDisplayW) / 2;
+        cropImgY = (winH - cropImgDisplayH) / 2;
+        updateCropPosition();
+
+        bindCropDrag();
+    };
+    img.src = cropImgSrc;
+}
+
+function bindCropDrag() {
+    const win = document.getElementById('wallpaper-crop-window');
+
+    win.onmousedown = null; win.onmousemove = null; win.onmouseup = null; win.onmouseleave = null;
+    win.ontouchstart = null; win.ontouchmove = null; win.ontouchend = null;
+
+    const startDrag = (x, y) => {
+        cropDragging = true;
+        cropStartX = x - cropImgX;
+        cropStartY = y - cropImgY;
+    };
+    const moveDrag = (x, y) => {
+        if (!cropDragging) return;
+        let newX = x - cropStartX;
+        let newY = y - cropStartY;
+
+        const winW = win.clientWidth;
+        const winH = win.clientHeight;
+        if (newX > 0) newX = 0;
+        if (newY > 0) newY = 0;
+        if (newX < winW - cropImgDisplayW) newX = winW - cropImgDisplayW;
+        if (newY < winH - cropImgDisplayH) newY = winH - cropImgDisplayH;
+
+        cropImgX = newX;
+        cropImgY = newY;
+        updateCropPosition();
+    };
+    const endDrag = () => { cropDragging = false; };
+
+    win.onmousedown = (e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); };
+    win.onmousemove = (e) => { moveDrag(e.clientX, e.clientY); };
+    win.onmouseup = endDrag;
+    win.onmouseleave = endDrag;
+
+    win.ontouchstart = (e) => { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); };
+    win.ontouchmove  = (e) => { e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); };
+    win.ontouchend   = (e) => { e.preventDefault(); endDrag(); };
+}
+
+function updateCropPosition() {
+    const img = document.getElementById('wallpaper-crop-img');
+    img.style.left = cropImgX + 'px';
+    img.style.top = cropImgY + 'px';
+}
+
+function confirmWallpaperCrop() {
+    if (!cropImgSrc) return;
+    const win = document.getElementById('wallpaper-crop-window');
+    const winW = win.clientWidth;
+    const winH = win.clientHeight;
+
+    // 提高输出清晰度
+    const outputScale = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = winW * outputScale;
+    canvas.height = winH * outputScale;
+    const ctx = canvas.getContext('2d');
+
+    // 窗口左上角在原始图片上的位置（像素）
+    const srcX = (-cropImgX) * (cropImgNaturalW / cropImgDisplayW);
+    const srcY = (-cropImgY) * (cropImgNaturalH / cropImgDisplayH);
+    const srcW = winW * (cropImgNaturalW / cropImgDisplayW);
+    const srcH = winH * (cropImgNaturalH / cropImgDisplayH);
+
+    const img = new Image();
+    img.onload = () => {
+        ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+        const croppedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+
+        const t = getTheme();
+        t.wallpaper = croppedBase64;
+        saveTheme(t);
+        applyTheme();
+
+        cropImgSrc = null;
+        document.getElementById('wallpaper-crop-area').style.display = 'none';
+        alert('壁纸已应用！');
+    };
+    img.src = cropImgSrc;
 }
 
 function cancelWallpaper() {
-    pendingWallpaper = null;
-    document.getElementById('wallpaper-preview').style.display = 'none';
+    cropImgSrc = null;
+    document.getElementById('wallpaper-crop-area').style.display = 'none';
 }
+
 function clearWallpaper() { const t = getTheme(); t.wallpaper = ''; saveTheme(t); applyTheme(); }
 
 // ================= 自定义导航图标 =================
@@ -356,21 +484,12 @@ function setLockType(type) {
         const pwd = prompt('请设置密码（4位数字）：');
         if (pwd === null) return;
         if (!/^\d{4}$/.test(pwd)) { alert('请输入4位数字密码'); return; }
-        const confirm = prompt('请再次输入密码：');
-        if (confirm !== pwd) { alert('两次密码不一致'); return; }
+        const confirmPwd = prompt('请再次输入密码：');
+        if (confirmPwd !== pwd) { alert('两次密码不一致'); return; }
         l.type = 'password';
         l.password = pwd;
         localStorage.setItem('myLock', JSON.stringify(l));
         alert('密码锁设置成功！');
-    } else if (type === 'pattern') {
-        // 简单用密码模拟图形，提示用户
-        const pwd = prompt('图形锁暂用密码代替，请设置4位数字：');
-        if (pwd === null) return;
-        if (!/^\d{4}$/.test(pwd)) { alert('请输入4位数字'); return; }
-        l.type = 'pattern';
-        l.pattern = pwd;
-        localStorage.setItem('myLock', JSON.stringify(l));
-        alert('图形锁设置成功！（模拟）');
     } else if (type === 'fingerprint') {
         if (confirm('是否启用指纹解锁？（模拟，点击确定后需录入指纹）')) {
             l.type = 'fingerprint';
@@ -378,6 +497,7 @@ function setLockType(type) {
             alert('指纹锁已启用（模拟）');
         }
     }
+    // 注意：pattern 分支已删除，图形锁走 openPatternLock()
     loadLockSettings();
 }
 
@@ -561,38 +681,38 @@ function editItem(id) {
     switchPage('page-add');
 }
 
-// ================= 分布图 =================
-function initCharts() {
-    // 物品分布
+// ================= 物品分布图 =================
+function initItemChart() {
     const itemEl = document.getElementById('item-chart-container');
-    if (itemEl) {
-        if (myChart) myChart.dispose();
-        myChart = echarts.init(itemEl);
-        const cc = {};
-        getItems().forEach(i => cc[i.category] = (cc[i.category] || 0) + 1);
-        const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
-        myChart.setOption({
-            tooltip: { trigger: 'item' },
-            legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 12, icon: 'circle', textStyle: { fontSize: 11 } },
-            color: ['#d98880', '#85c1e9', '#82c8a0', '#f7dc6f', '#bb8fce', '#f5b041', '#f5b7b1', '#aed6f1'],
-            series: [{ name: '物品分布', type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: data.length > 0 ? data : [{ value: 0, name: '暂无数据', itemStyle: { color: '#eee' } }] }]
-        });
-    }
-    // 随礼分布
+    if (!itemEl) return;
+    if (myChart) myChart.dispose();
+    myChart = echarts.init(itemEl);
+    const cc = {};
+    getItems().forEach(i => cc[i.category] = (cc[i.category] || 0) + 1);
+    const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
+    myChart.setOption({
+        tooltip: { trigger: 'item' },
+        legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 12, icon: 'circle', textStyle: { fontSize: 11 } },
+        color: ['#d98880', '#85c1e9', '#82c8a0', '#f7dc6f', '#bb8fce', '#f5b041', '#f5b7b1', '#aed6f1'],
+        series: [{ name: '物品分布', type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: data.length > 0 ? data : [{ value: 0, name: '暂无数据', itemStyle: { color: '#eee' } }] }]
+    });
+}
+
+// ================= 随礼分布图 =================
+function initGiftChart() {
     const giftEl = document.getElementById('gift-chart-container');
-    if (giftEl) {
-        if (myGiftChart) myGiftChart.dispose();
-        myGiftChart = echarts.init(giftEl);
-        const cc = {};
-        getGiftRecords().forEach(r => r.events.forEach(e => cc[e.event] = (cc[e.event] || 0) + e.amount));
-        const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
-        myGiftChart.setOption({
-            tooltip: { trigger: 'item', formatter: '{b}: ¥{c}' },
-            legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 12, icon: 'circle', textStyle: { fontSize: 11 } },
-            color: ['#f5b7b1', '#f7dc6f', '#82c8a0', '#85c1e9', '#bb8fce', '#f5b041', '#d98880', '#aed6f1'],
-            series: [{ name: '随礼分布', type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: data.length > 0 ? data : [{ value: 0, name: '暂无数据', itemStyle: { color: '#eee' } }] }]
-        });
-    }
+    if (!giftEl) return;
+    if (myGiftChart) myGiftChart.dispose();
+    myGiftChart = echarts.init(giftEl);
+    const cc = {};
+    getGiftRecords().forEach(r => r.events.forEach(e => cc[e.event] = (cc[e.event] || 0) + e.amount));
+    const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
+    myGiftChart.setOption({
+        tooltip: { trigger: 'item', formatter: '{b}: ¥{c}' },
+        legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 12, icon: 'circle', textStyle: { fontSize: 11 } },
+        color: ['#f5b7b1', '#f7dc6f', '#82c8a0', '#85c1e9', '#bb8fce', '#f5b041', '#d98880', '#aed6f1'],
+        series: [{ name: '随礼分布', type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: data.length > 0 ? data : [{ value: 0, name: '暂无数据', itemStyle: { color: '#eee' } }] }]
+    });
 }
 
 // ================= 随礼 =================
@@ -625,11 +745,29 @@ function renderGiftList() {
     let filtered = kw ? records.filter(r => r.person.toLowerCase().includes(kw)) : records;
     if (filtered.length === 0) { container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">暂无随礼记录</p>'; return; }
     container.innerHTML = '';
-    const colors = ['#fadbd8','#f5b7b1','#f9e79f','#a9dfbf','#aed6f1','#d2b4de','#f5cba7','#f1948a'];
+
+    // 收礼 = 绿系，随礼 = 红系（与详情页一致）
+    const giftColors    = ['#fadbd8', '#f5b7b1', '#f1948a', '#e6b0aa'];  // 红系
+    const receiveColors = ['#d5f4e6', '#a9dfbf', '#7dcea0', '#a2d9ce'];  // 绿系
+
     filtered.forEach(record => {
-        let total = 0; record.events.forEach(e => total += e.amount);
+        let total = 0;
+        record.events.forEach(e => total += e.amount);
+
         let tagsHtml = '';
-        record.events.forEach((ev, i) => { tagsHtml += `<span class="event-tag" style="background: ${colors[i % colors.length]};">${ev.event} ¥${ev.amount}</span>`; });
+        let redIdx = 0, greenIdx = 0;
+        record.events.forEach(ev => {
+            let bg;
+            if (ev.type === '收礼') {
+                bg = receiveColors[greenIdx % receiveColors.length];
+                greenIdx++;
+            } else {
+                bg = giftColors[redIdx % giftColors.length];
+                redIdx++;
+            }
+            tagsHtml += `<span class="event-tag" style="background: ${bg};">${ev.event} ¥${ev.amount}</span>`;
+        });
+
         const div = document.createElement('div');
         div.className = 'gift-card';
         div.setAttribute('onclick', `showGiftDetail(${record.id})`);
@@ -654,12 +792,13 @@ function renderGiftEventList() {
     container.innerHTML = '';
     [...record.events].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(ev => {
         const div = document.createElement('div');
-        div.className = 'event-card';
-        // 根据类型设置背景色
+                div.className = 'event-card';
         const bgColor = ev.type === '收礼' ? '#d5f4e6' : '#fadbd8';
         const borderColor = ev.type === '收礼' ? '#82c8a0' : '#d98880';
         div.style.background = bgColor;
         div.style.borderLeftColor = borderColor;
+        div.style.cursor = 'pointer';
+        div.setAttribute('onclick', `showEventDetail(${ev.id})`);
         div.innerHTML = `
             <div class="event-header">${ev.event} <span style="font-size:12px;color:#666;">(${ev.type || '随礼'})</span></div>
             <div class="event-info">💰 礼金：¥${ev.amount}</div>
@@ -670,7 +809,60 @@ function renderGiftEventList() {
     });
 }
 
+// 显示事件详情
+function showEventDetail(eventId) {
+    const record = getGiftRecords().find(r => r.id === currentGiftPersonId);
+    if (!record) return;
+    const ev = record.events.find(e => e.id === eventId);
+    if (!ev) return;
+    currentEventId = eventId;
+
+    const bgColor = ev.type === '收礼' ? '#d5f4e6' : '#fadbd8';
+    const borderColor = ev.type === '收礼' ? '#82c8a0' : '#d98880';
+
+    document.getElementById('event-detail-content').innerHTML = `
+        <div class="event-card" style="background:${bgColor}; border-left-color:${borderColor};">
+            <div class="event-header">${ev.event} <span style="font-size:12px;color:#666;">(${ev.type || '随礼'})</span></div>
+            <div class="event-info">👤 随礼人：${record.person}</div>
+            <div class="event-info">💰 礼金：¥${ev.amount}</div>
+            <div class="event-info">📅 时间：${ev.date || '未记录'}</div>
+            <div class="event-info">📍 地点：${ev.location || '未记录'}</div>
+        </div>
+    `;
+    switchPage('page-event-detail');
+}
+
+// 编辑事件（把数据填到增加事件页）
+function editGiftEvent() {
+    const record = getGiftRecords().find(r => r.id === currentGiftPersonId);
+    if (!record) return;
+    const ev = record.events.find(e => e.id === currentEventId);
+    if (!ev) return;
+
+    editingEventId = ev.id;
+    document.getElementById('event-name').value = ev.event || '';
+    document.getElementById('event-amount').value = ev.amount || '';
+    document.getElementById('event-date').value = ev.date || '';
+    document.getElementById('event-location').value = ev.location || '';
+
+    // 选中类型
+    selectedGiftType = ev.type || '随礼';
+    document.querySelectorAll('#page-add-event .chip[data-gift-type]').forEach(c => {
+        c.classList.toggle('active', c.dataset.giftType === selectedGiftType);
+    });
+
+    // 选中事件分类（如果匹配）
+    document.querySelectorAll('#page-add-event .chip[data-type]').forEach(c => {
+        c.classList.toggle('active', c.dataset.type === ev.event);
+    });
+
+    switchPage('page-add-event');
+}
+
+
 function showAddEventPage() {
+    editingEventId = null;
+    selectedGiftType = '随礼';
     ['event-name','event-amount','event-date','event-location'].forEach(id => document.getElementById(id).value = '');
     document.querySelectorAll('#page-add-event .chip').forEach(c => c.classList.remove('active'));
     switchPage('page-add-event');
@@ -682,12 +874,40 @@ function saveGiftEvent() {
     const date = document.getElementById('event-date').value;
     const location = document.getElementById('event-location').value.trim();
     if (!event || !amount) { alert('请填写事件和金额！'); return; }
+
     let records = getGiftRecords();
     const record = records.find(r => r.id === currentGiftPersonId);
     if (!record) return;
-    record.events.push({ id: Date.now(), event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼' });
+
+    if (editingEventId) {
+        // 编辑模式：更新已有事件
+        const idx = record.events.findIndex(e => e.id === editingEventId);
+        if (idx !== -1) {
+            record.events[idx] = {
+                ...record.events[idx],
+                event,
+                amount: parseFloat(amount),
+                date,
+                location,
+                type: selectedGiftType || '随礼'
+            };
+        }
+        alert('修改成功！');
+        editingEventId = null;
+    } else {
+        // 新增模式
+        record.events.push({
+            id: Date.now(),
+            event,
+            amount: parseFloat(amount),
+            date,
+            location,
+            type: selectedGiftType || '随礼'
+        });
+        alert('事件添加成功！');
+    }
+
     localStorage.setItem('myGiftRecords', JSON.stringify(records));
-    alert('事件添加成功！');
     renderGiftEventList();
     switchPage('page-gift-detail');
 }
@@ -817,7 +1037,7 @@ function renderCalendar() {
             else if (ev.level === '纪念') bgColor = '#c96a5a';
             eventsHtml += `<div class="cal-event-rect" style="background:${bgColor}">${ev.event}</div>`;
         });
-        html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''}" onclick="selectCalDay('${dateStr}')">
+                html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
             <span class="cal-day">${d}</span>
             ${jieQiText ? `<span class="cal-holiday">${jieQiText}</span>` : (lunarText ? `<span class="cal-lunar">${lunarText}</span>` : '')}
             ${holiday ? `<span class="cal-holiday">${holiday}</span>` : ''}
@@ -825,10 +1045,36 @@ function renderCalendar() {
             ${eventsHtml ? `<div class="cal-events">${eventsHtml}</div>` : ''}
         </div>`;
     }
-    grid.innerHTML = html;
+        grid.innerHTML = html;
+
+    // 绑定长按事件（弹出日记面板）
+    document.querySelectorAll('#calendar-grid .cal-cell:not(.empty)').forEach(cell => {
+        const dateStr = cell.dataset.date;
+        if (!dateStr) return;
+        let fired = false;
+        const startPress = () => {
+            fired = false;
+            longPressTimer = setTimeout(() => {
+                fired = true;
+                isLongPress = true;
+                if (navigator.vibrate) navigator.vibrate(30);
+                openDiaryPanel(dateStr);
+            }, 600);
+        };
+        const cancelPress = () => clearTimeout(longPressTimer);
+
+        cell.addEventListener('touchstart', startPress, { passive: true });
+        cell.addEventListener('touchend', cancelPress);
+        cell.addEventListener('touchmove', cancelPress);
+        cell.addEventListener('touchcancel', cancelPress);
+        cell.addEventListener('mousedown', startPress);
+        cell.addEventListener('mouseup', cancelPress);
+        cell.addEventListener('mouseleave', cancelPress);
+    });
 }
 
 function selectCalDay(dateStr) {
+    if (isLongPress) { isLongPress = false; return; }
     const dates = getImportantDates().filter(d => d.date === dateStr);
     const detail = document.getElementById('important-detail-card');
     if (dates.length === 0) { detail.style.display = 'none'; return; }
@@ -993,7 +1239,7 @@ function renderBookProgress() {
             <h3 style="margin-bottom:10px;">今天看书了嘛~ 📖</h3>
             <div style="display:flex; justify-content:space-between; font-size:13px; color:#666; margin-bottom:6px;">
                 <span>${book.name}</span>
-                <span>已用 ${spent}h / 计划剩余 ${remaining}h</span>
+                <span>已用 ${spent} 天 / 计划剩余 ${remaining} 天</span>
             </div>
             <div class="progress-bar-bg">
                 <div class="progress-bar-fill" style="width:${percent}%"></div>
@@ -1039,6 +1285,172 @@ function saveBookDetail() {
     alert('保存成功！');
     switchPage('page-home');
 }
+// ================= 图形锁 =================
+function openPatternLock() {
+    const l = getLockSettings();
+    if (l.type === 'pattern') {
+        // 已有图形锁 → 验证模式（先允许取消）
+        if (!confirm('已经设置了图形锁，是否重新设置？\n点“取消”则保持不变')) return;
+    }
+    patternMode = 'set';
+    patternFirstAttempt = null;
+    document.getElementById('pattern-title').innerText = '绘制解锁图案';
+    document.getElementById('pattern-hint').innerText = '请连接至少 4 个点';
+    document.getElementById('pattern-lock-modal').style.display = 'flex';
+    initPatternCanvas();
+}
+
+function closePatternLock() {
+    document.getElementById('pattern-lock-modal').style.display = 'none';
+    patternDrawing = false;
+    patternSelected = [];
+}
+
+function initPatternCanvas() {
+    const canvas = document.getElementById('pattern-canvas');
+    const ctx = canvas.getContext('2d');
+    const size = 300;
+    const cellSize = size / 3;
+
+    // 记录 9 个点的中心坐标
+    patternPoints = [];
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            patternPoints.push({
+                x: cellSize * c + cellSize / 2,
+                y: cellSize * r + cellSize / 2,
+                index: r * 3 + c
+            });
+        }
+    }
+
+    patternSelected = [];
+    drawPattern();
+
+    // 移除旧监听，避免重复绑定
+    canvas.onmousedown = null;
+    canvas.onmousemove = null;
+    canvas.onmouseup = null;
+    canvas.ontouchstart = null;
+    canvas.ontouchmove = null;
+    canvas.ontouchend = null;
+
+    // 鼠标事件
+    canvas.onmousedown = (e) => { patternDrawing = true; handlePatternMove(e); };
+    canvas.onmousemove = (e) => { if (patternDrawing) handlePatternMove(e); };
+    canvas.onmouseup = () => { patternDrawing = false; finishPattern(); };
+
+    // 触摸事件
+    canvas.ontouchstart = (e) => { e.preventDefault(); patternDrawing = true; handlePatternMove(e.touches[0]); };
+    canvas.ontouchmove = (e) => { e.preventDefault(); if (patternDrawing) handlePatternMove(e.touches[0]); };
+    canvas.ontouchend = (e) => { e.preventDefault(); patternDrawing = false; finishPattern(); };
+}
+
+function getCanvasPos(e, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+    };
+}
+
+function handlePatternMove(e) {
+    const canvas = document.getElementById('pattern-canvas');
+    const pos = getCanvasPos(e, canvas);
+    // 检测是否靠近某个点（半径 30）
+    patternPoints.forEach(p => {
+        if (patternSelected.includes(p.index)) return;
+        const dist = Math.sqrt((pos.x - p.x) ** 2 + (pos.y - p.y) ** 2);
+        if (dist < 30) {
+            patternSelected.push(p.index);
+            if (navigator.vibrate) navigator.vibrate(20);
+        }
+    });
+    drawPattern(pos);
+}
+
+function drawPattern(currentPos) {
+    const canvas = document.getElementById('pattern-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 画 9 个点
+    patternPoints.forEach(p => {
+        const selected = patternSelected.includes(p.index);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, selected ? 12 : 8, 0, Math.PI * 2);
+        ctx.fillStyle = selected ? '#d98880' : '#bbb';
+        ctx.fill();
+    });
+
+    // 画已选点之间的连线
+    if (patternSelected.length > 1) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#d98880';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (let i = 0; i < patternSelected.length - 1; i++) {
+            const a = patternPoints[patternSelected[i]];
+            const b = patternPoints[patternSelected[i + 1]];
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+        }
+        // 最后一根线连到当前手指/鼠标位置
+        if (currentPos && patternDrawing) {
+            const last = patternPoints[patternSelected[patternSelected.length - 1]];
+            ctx.moveTo(last.x, last.y);
+            ctx.lineTo(currentPos.x, currentPos.y);
+        }
+        ctx.stroke();
+    }
+}
+
+function resetPattern() {
+    patternSelected = [];
+    drawPattern();
+    document.getElementById('pattern-hint').innerText = patternMode === 'set' && patternFirstAttempt ? '请再次绘制确认' : '请连接至少 4 个点';
+}
+
+function finishPattern() {
+    patternDrawing = false;
+    if (patternSelected.length < 4) {
+        document.getElementById('pattern-hint').innerText = '⚠️ 至少连接 4 个点';
+        setTimeout(resetPattern, 600);
+        return;
+    }
+
+    const patternStr = patternSelected.join('-');
+
+    if (patternMode === 'set') {
+        if (!patternFirstAttempt) {
+            // 第一次绘制，暂存，等待确认
+            patternFirstAttempt = patternStr;
+            document.getElementById('pattern-hint').innerText = '请再次绘制确认';
+            setTimeout(resetPattern, 400);
+        } else {
+            // 第二次绘制，对比
+            if (patternFirstAttempt === patternStr) {
+                const l = getLockSettings();
+                l.type = 'pattern';
+                l.pattern = patternStr;
+                localStorage.setItem('myLock', JSON.stringify(l));
+                loadLockSettings();
+                document.getElementById('pattern-hint').innerText = '✅ 图形锁设置成功！';
+                setTimeout(() => {
+                    closePatternLock();
+                    alert('图形锁设置成功！');
+                }, 600);
+            } else {
+                document.getElementById('pattern-hint').innerText = '❌ 两次不一致，请重新绘制';
+                patternFirstAttempt = null;
+                setTimeout(resetPattern, 800);
+            }
+        }
+    }
+}
 
 // ================= 初始化 =================
 window.addEventListener('load', () => {
@@ -1050,6 +1462,183 @@ window.addEventListener('load', () => {
     renderUpcomingDates();
     refreshDrawerInfo();
     applyCustomIcons();
-    setTimeout(initCharts, 200);
     renderBookProgress();
 });
+
+// ================= 日记/便签 =================
+
+// 日记模板（5个）
+const diaryTemplates = [
+    { id: 'd1', name: '今日心情', icon: '😊', content: '【今天的心情】\n\n\n【今天发生的事】\n\n\n【最难忘的瞬间】\n\n' },
+    { id: 'd2', name: '感恩日记', icon: '🙏', content: '【今天值得感恩的3件事】\n1. \n2. \n3. \n\n【我想感谢的人】\n\n' },
+    { id: 'd3', name: '反思日记', icon: '🤔', content: '【今天学到了什么】\n\n\n【做得好的地方】\n\n\n【可以改进的地方】\n\n' },
+    { id: 'd4', name: '旅行日记', icon: '✈️', content: '【去了哪里】\n\n【见了谁】\n\n【吃了什么】\n\n【感受】\n' },
+    { id: 'd5', name: '自由记录', icon: '📖', content: '' }
+];
+
+// 便签模板（5个）
+const noteTemplates = [
+    { id: 'n1', name: '待办清单', icon: '✅', content: '□ \n□ \n□ \n□ \n□ ' },
+    { id: 'n2', name: '购物清单', icon: '🛒', content: '□ \n□ \n□ \n□ ' },
+    { id: 'n3', name: '灵感记录', icon: '💡', content: '灵感来源：\n\n具体想法：\n\n' },
+    { id: 'n4', name: '提醒事项', icon: '⏰', content: '别忘了：\n\n截止时间：\n\n' },
+    { id: 'n5', name: '空白便签', icon: '📝', content: '' }
+];
+
+function getDiaries() {
+    return JSON.parse(localStorage.getItem('myDiaries')) || [];
+}
+function saveDiaries(list) {
+    localStorage.setItem('myDiaries', JSON.stringify(list));
+}
+
+function openDiaryPanel(dateStr) {
+    diaryPanelDate = dateStr;
+    const d = new Date(dateStr);
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    document.getElementById('diary-panel-date').textContent = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+    document.getElementById('diary-panel-weekday').textContent = `星期${weekdays[d.getDay()]}`;
+    renderDiaryPanel(dateStr);
+    document.getElementById('diary-panel').classList.add('open');
+    document.getElementById('diary-panel-overlay').classList.add('open');
+}
+
+function closeDiaryPanel() {
+    document.getElementById('diary-panel').classList.remove('open');
+    document.getElementById('diary-panel-overlay').classList.remove('open');
+}
+
+function renderDiaryPanel(dateStr) {
+    const body = document.getElementById('diary-panel-body');
+    const diaries = getDiaries().filter(d => d.date === dateStr);
+    if (diaries.length === 0) {
+        body.innerHTML = '<p style="text-align:center; color:#999; padding:40px 20px;">这一天还没有记录<br><br>点右上角 <b style="color:#d98880;">+</b> 添加日记或便签</p>';
+        return;
+    }
+    body.innerHTML = '';
+    diaries.sort((a, b) => b.createdAt - a.createdAt);
+    diaries.forEach(d => {
+        const card = document.createElement('div');
+        card.className = 'diary-card';
+        card.setAttribute('onclick', `editDiary(${d.id})`);
+        const icon = d.type === '日记' ? '📔' : '📝';
+        const time = new Date(d.createdAt);
+        const timeStr = `${String(time.getHours()).padStart(2,'0')}:${String(time.getMinutes()).padStart(2,'0')}`;
+        card.innerHTML = `
+            <div class="diary-card-header">
+                <span class="diary-card-type">${icon} ${d.type}</span>
+                <span class="diary-card-time">${timeStr}</span>
+            </div>
+            ${d.title ? `<div class="diary-card-title">${d.title}</div>` : ''}
+            <div class="diary-card-content">${(d.content || '').replace(/</g,'&lt;')}</div>
+        `;
+        body.appendChild(card);
+    });
+}
+
+function showTemplateModal() {
+    currentDiaryType = '日记';
+    document.getElementById('type-chip-diary').classList.add('active');
+    document.getElementById('type-chip-note').classList.remove('active');
+    renderTemplateGrid();
+    document.getElementById('template-modal').style.display = 'flex';
+}
+
+function closeTemplateModal() {
+    document.getElementById('template-modal').style.display = 'none';
+}
+
+function switchTemplateType(type) {
+    currentDiaryType = type;
+    document.getElementById('type-chip-diary').classList.toggle('active', type === '日记');
+    document.getElementById('type-chip-note').classList.toggle('active', type === '便签');
+    renderTemplateGrid();
+}
+
+function renderTemplateGrid() {
+    const templates = currentDiaryType === '日记' ? diaryTemplates : noteTemplates;
+    const grid = document.getElementById('template-grid');
+    grid.innerHTML = '';
+    templates.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'template-item';
+        div.setAttribute('onclick', `selectTemplate('${t.id}')`);
+        div.innerHTML = `<div class="template-icon">${t.icon}</div><div class="template-name">${t.name}</div>`;
+        grid.appendChild(div);
+    });
+}
+
+function selectTemplate(templateId) {
+    const templates = currentDiaryType === '日记' ? diaryTemplates : noteTemplates;
+    const t = templates.find(x => x.id === templateId);
+    if (!t) return;
+
+    editingDiaryId = null;
+    currentDiaryTemplate = t.id;
+    document.getElementById('diary-edit-title').textContent = currentDiaryType === '日记' ? '写日记' : '写便签';
+    document.getElementById('diary-title-input').value = '';
+    document.getElementById('diary-content-input').value = t.content;
+    document.getElementById('diary-delete-btn').style.display = 'none';
+
+    closeTemplateModal();
+    closeDiaryPanel();
+    switchPage('page-diary-edit');
+}
+
+function editDiary(id) {
+    const d = getDiaries().find(x => x.id === id);
+    if (!d) return;
+    editingDiaryId = id;
+    currentDiaryType = d.type;
+    document.getElementById('diary-edit-title').textContent = d.type === '日记' ? '编辑日记' : '编辑便签';
+    document.getElementById('diary-title-input').value = d.title || '';
+    document.getElementById('diary-content-input').value = d.content || '';
+    document.getElementById('diary-delete-btn').style.display = 'block';
+    closeDiaryPanel();
+    switchPage('page-diary-edit');
+}
+
+function saveDiary() {
+    if (!diaryPanelDate) { alert('日期错误'); return; }
+    const title = document.getElementById('diary-title-input').value.trim();
+    const content = document.getElementById('diary-content-input').value;
+    if (!title && !content.trim()) { alert('内容不能为空'); return; }
+
+    let diaries = getDiaries();
+    if (editingDiaryId) {
+        const idx = diaries.findIndex(d => d.id === editingDiaryId);
+        if (idx !== -1) diaries[idx] = { ...diaries[idx], title, content };
+        alert('修改成功！');
+    } else {
+        diaries.push({
+            id: Date.now(),
+            date: diaryPanelDate,
+            type: currentDiaryType,
+            title,
+            content,
+            createdAt: Date.now()
+        });
+        alert('保存成功！');
+    }
+    saveDiaries(diaries);
+    editingDiaryId = null;
+
+    switchPage('page-important-dates');
+    setTimeout(() => openDiaryPanel(diaryPanelDate), 150);
+}
+
+function cancelDiaryEdit() {
+    editingDiaryId = null;
+    switchPage('page-important-dates');
+    setTimeout(() => { if (diaryPanelDate) openDiaryPanel(diaryPanelDate); }, 150);
+}
+
+function deleteDiary() {
+    if (!editingDiaryId) return;
+    if (!confirm('确定删除这条记录吗？')) return;
+    let diaries = getDiaries().filter(d => d.id !== editingDiaryId);
+    saveDiaries(diaries);
+    editingDiaryId = null;
+    switchPage('page-important-dates');
+    setTimeout(() => openDiaryPanel(diaryPanelDate), 150);
+}

@@ -50,13 +50,6 @@
     <div id="upcoming-dates-section"></div>
     <div id="book-progress-section"></div>
 
-    <!-- 分布卡片 -->
-    <div class="card" id="distribution-card">
-        <h3 style="margin-bottom:10px;">物品分布</h3>
-        <div id="item-chart-container" style="width:100%;height:220px;"></div>
-        <h3 style="margin:20px 0 10px;">随礼分布</h3>
-        <div id="gift-chart-container" style="width:100%;height:220px;"></div>
-    </div>
 </div>
 
 <!-- ============ 2. 增加物品 ============ -->
@@ -112,6 +105,9 @@
                 <button class="filter-btn" data-filter-status="not-warranty-expired" onclick="setFilterStatus('not-warranty-expired')">未过保</button>
             </div>
         </div>
+        <div style="margin-top:15px; padding-top:15px; border-top:1px solid #eee;">
+            <button class="filter-btn" style="width:100%; padding:10px; font-size:13px;" onclick="toggleFilterMenu(); switchPage('page-item-distribution')">📊 查看物品分布</button>
+        </div>
     </div>
     <div id="items-list"></div>
 </div>
@@ -120,7 +116,10 @@
 <div id="page-gift-record" class="page">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;padding:0 10px;">
         <h3>随礼记录</h3>
-        <input type="text" id="gift-search-input" oninput="renderGiftList()" placeholder="搜索随礼人..." style="width:60%;padding:8px 12px;border-radius:12px;border:1px solid #eee;background:#fff;font-size:14px;outline:none;">
+        <div style="display:flex;align-items:center;">
+            <input type="text" id="gift-search-input" oninput="renderGiftList()" placeholder="搜索随礼人..." style="width:140px;padding:8px 12px;border-radius:12px;border:1px solid #eee;background:#fff;font-size:14px;outline:none;margin-right:10px;">
+            <span onclick="switchPage('page-gift-distribution')" style="font-size:22px;cursor:pointer;line-height:1;">📊</span>
+        </div>
     </div>
     <div id="gift-list"></div>
 </div>
@@ -169,6 +168,16 @@
         <span onclick="showAddEventPage()" style="font-size:28px;color:#d98880;cursor:pointer;font-weight:bold;">+</span>
     </div>
     <div id="gift-event-list"></div>
+</div>
+
+<!-- ============ 事件详情 ============ -->
+<div id="page-event-detail" class="page">
+    <div style="display:flex;align-items:center;margin-bottom:15px;padding:0 10px;">
+        <span onclick="switchPage('page-gift-detail')" style="font-size:24px;margin-right:10px;cursor:pointer;">←</span>
+        <h3>事件详情</h3>
+    </div>
+    <div id="event-detail-content"></div>
+    <button class="btn-primary" onclick="editGiftEvent()">编辑</button>
 </div>
 
 <!-- ============ 7. 增加随礼事件 ============ -->
@@ -274,9 +283,49 @@
         <div class="form-group"><label>开始阅读时间</label><input type="text" id="book-start-date" readonly inputmode="none" placeholder="点击选择" class="form-input" onclick="openDatePicker('book-start-date')" onfocus="this.blur()"></div>
         <div class="form-group"><label>总页数</label><input type="number" id="book-total-pages" class="form-input"></div>
         <div class="form-group"><label>目前页数</label><input type="number" id="book-current-pages" class="form-input"></div>
-        <div class="form-group"><label>预计用时（小时）</label><input type="number" id="book-estimated-hours" step="0.1" class="form-input"></div>
-        <div class="form-group"><label>已用时（小时）</label><input type="number" id="book-spent-hours" step="0.1" class="form-input"></div>
+        <div class="form-group"><label>预计用时（天）</label><input type="number" id="book-estimated-hours" step="0.5" class="form-input"></div>
+        <div class="form-group"><label>已用时（天）</label><input type="number" id="book-spent-hours" step="0.5" class="form-input"></div>
         <button class="btn-primary" onclick="saveBookDetail()">保存</button>
+    </div>
+</div>
+
+<!-- ============ 12. 物品分布饼图 ============ -->
+<div id="page-item-distribution" class="page">
+    <div class="page-top-bar">
+        <span onclick="switchPage('page-all-items')" class="back-arrow">←</span>
+        <h3>物品分布</h3>
+    </div>
+    <div class="card">
+        <div id="item-chart-container" style="width:100%;height:320px;"></div>
+    </div>
+</div>
+
+<!-- ============ 13. 随礼分布饼图 ============ -->
+<div id="page-gift-distribution" class="page">
+    <div class="page-top-bar">
+        <span onclick="switchPage('page-gift-record')" class="back-arrow">←</span>
+        <h3>随礼分布</h3>
+    </div>
+    <div class="card">
+        <div id="gift-chart-container" style="width:100%;height:320px;"></div>
+    </div>
+</div>
+
+<!-- ============ 14. 日记编辑 ============ -->
+<div id="page-diary-edit" class="page">
+    <div class="page-top-bar">
+        <span onclick="cancelDiaryEdit()" class="back-arrow">←</span>
+        <h3 id="diary-edit-title">写日记</h3>
+        <span onclick="saveDiary()" style="margin-left:auto; color:var(--primary); font-weight:bold; cursor:pointer; padding:0 10px;">保存</span>
+    </div>
+    <div class="card">
+        <div class="form-group">
+            <input type="text" id="diary-title-input" placeholder="标题（可不填）" class="form-input">
+        </div>
+        <div class="form-group">
+            <textarea id="diary-content-input" placeholder="写点什么..." class="form-input" rows="14" style="resize:vertical; font-family:inherit; line-height:1.6;"></textarea>
+        </div>
+        <button class="btn-secondary" id="diary-delete-btn" onclick="deleteDiary()" style="color:#d98880; display:none;">删除这条记录</button>
     </div>
 </div>
 
@@ -373,13 +422,18 @@
             <button class="btn-secondary" style="width:auto;padding:10px 16px;font-size:14px;margin:0;" onclick="clearWallpaper()">清除壁纸</button>
         </div>
         <input type="file" id="wallpaper-upload" accept="image/*" style="display:none;" onchange="uploadWallpaper(this)">
-        <div id="wallpaper-preview" style="display:none; margin-top:15px;">
-            <p style="font-size:12px; color:#666; margin-bottom:8px;">预览：</p>
-            <img id="wallpaper-preview-img" style="max-width:100%; border-radius:12px; max-height:300px;">
-         <div style="display:flex; gap:10px; margin-top:10px;">
-             <button class="btn-primary" style="flex:1; padding:10px; font-size:14px;" onclick="confirmWallpaper()">确认使用</button>
-             <button class="btn-secondary" style="flex:1; padding:10px; font-size:14px; margin:0;" onclick="cancelWallpaper()">取消</button>
-         </div>
+        <div id="wallpaper-crop-area" style="display:none; margin-top:15px;">
+            <p style="font-size:12px; color:#666; margin-bottom:8px;">拖动图片选择显示区域：</p>
+            <div style="display:flex; justify-content:center;">
+                <div id="wallpaper-crop-window" style="position:relative; width:220px; height:390px; overflow:hidden; border-radius:16px; background:#000; touch-action:none; cursor:grab; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+                    <img id="wallpaper-crop-img" style="position:absolute; user-select:none; pointer-events:none; max-width:none;">
+                    <div style="position:absolute; inset:0; border:2px dashed rgba(255,255,255,0.5); border-radius:16px; pointer-events:none; box-sizing:border-box;"></div>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:12px;">
+                <button class="btn-primary" style="flex:1; padding:10px; font-size:14px;" onclick="confirmWallpaperCrop()">确认使用</button>
+                <button class="btn-secondary" style="flex:1; padding:10px; font-size:14px; margin:0;" onclick="cancelWallpaper()">取消</button>
+            </div>
         </div>
     </div>
     <div class="card">
@@ -429,7 +483,7 @@
     <div class="card">
         <h4 class="section-title">选择解锁方式（三选一）</h4>
         <div class="lock-option" onclick="setLockType('fingerprint')"><span class="lock-icon">👆</span><span class="lock-name">指纹解锁</span><span class="lock-check" id="lock-fingerprint"></span></div>
-        <div class="lock-option" onclick="setLockType('pattern')"><span class="lock-icon">🔷</span><span class="lock-name">图形解锁</span><span class="lock-check" id="lock-pattern"></span></div>
+        <div class="lock-option" onclick="openPatternLock()"><span class="lock-icon">🔷</span><span class="lock-name">图形解锁</span><span class="lock-check" id="lock-pattern"></span></div>
         <div class="lock-option" onclick="setLockType('password')"><span class="lock-icon">🔢</span><span class="lock-name">密码解锁</span><span class="lock-check" id="lock-password"></span></div>
     </div>
 </div>
@@ -475,6 +529,54 @@
         <div class="modal-header"><span id="picker-title">选择年份</span><span class="close-btn" onclick="closeDatePicker()">×</span></div>
         <div id="picker-body" class="picker-body"></div>
         <div class="modal-footer"><button class="btn-today" onclick="selectToday()">今日</button></div>
+    </div>
+</div>
+
+<!-- ============ 日记/便签侧边面板 ============ -->
+<div id="diary-panel-overlay" class="diary-panel-overlay" onclick="closeDiaryPanel()"></div>
+<div id="diary-panel" class="diary-panel">
+    <div class="diary-panel-header">
+        <div>
+            <div id="diary-panel-date" class="diary-panel-date">2026年10月15日</div>
+            <div id="diary-panel-weekday" class="diary-panel-weekday">星期三</div>
+        </div>
+        <div style="display:flex; gap:14px; align-items:center;">
+            <span onclick="showTemplateModal()" style="font-size:26px; color:white; cursor:pointer; font-weight:bold; line-height:1;">+</span>
+            <span onclick="closeDiaryPanel()" style="font-size:22px; color:white; cursor:pointer; line-height:1;">×</span>
+        </div>
+    </div>
+    <div id="diary-panel-body" class="diary-panel-body"></div>
+</div>
+
+<!-- ============ 模板选择弹窗 ============ -->
+<div id="template-modal" class="modal" style="display:none;">
+    <div class="modal-content" style="border-radius:20px 20px 0 0; max-height:85vh;">
+        <div class="modal-header">
+            <span id="template-modal-title">选择模板</span>
+            <span class="close-btn" onclick="closeTemplateModal()">×</span>
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <button class="chip active" id="type-chip-diary" onclick="switchTemplateType('日记')">📔 日记</button>
+            <button class="chip" id="type-chip-note" onclick="switchTemplateType('便签')">📝 便签</button>
+        </div>
+        <div id="template-grid" class="template-grid"></div>
+    </div>
+</div>
+
+<!-- 图形锁弹窗 -->
+<div id="pattern-lock-modal" class="modal" style="display:none;">
+    <div class="modal-content" style="border-radius: 20px 20px 0 0; padding: 24px 20px;">
+        <div class="modal-header">
+            <span id="pattern-title">绘制解锁图案</span>
+            <span class="close-btn" onclick="closePatternLock()">×</span>
+        </div>
+        <p id="pattern-hint" style="text-align:center; font-size:13px; color:#888; margin-bottom:15px;">请连接至少 4 个点</p>
+        <div style="display:flex; justify-content:center;">
+            <canvas id="pattern-canvas" width="300" height="300" style="touch-action:none; border-radius:50%;"></canvas>
+        </div>
+        <div style="text-align:center; margin-top:10px;">
+            <button class="btn-secondary" style="width:auto; padding:8px 20px; font-size:14px; margin:0;" onclick="resetPattern()">重绘</button>
+        </div>
     </div>
 </div>
 

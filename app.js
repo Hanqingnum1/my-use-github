@@ -17,6 +17,8 @@ let selectedImportantLevel = '提醒';
 let editingImportantId = null;
 let currentImportantDetailId = null;
 let selectedEventChipName = null;
+let pendingWallpaper = null;   // 待确认的壁纸
+let selectedGiftType = '随礼'; // 当前选中的随礼类型
 
 // 图标选择相关
 let iconSrcImage = null;
@@ -41,6 +43,7 @@ function switchPage(pageId) {
         document.getElementById('nav-home').classList.add('active');
         updateDashboard();
         renderUpcomingDates();
+        renderBookProgress();
         setTimeout(initCharts, 100);
     } else if (pageId === 'page-all-items') {
         document.getElementById('nav-all-items').classList.add('active');
@@ -144,10 +147,33 @@ function toggleDarkMode(on) { const t = getTheme(); t.dark = on; saveTheme(t); a
 function uploadWallpaper(input) {
     if (!input.files[0]) return;
     const reader = new FileReader();
-    reader.onload = (e) => compressImage(e.target.result, 800, (b64) => {
-        const t = getTheme(); t.wallpaper = b64; saveTheme(t); applyTheme();
-    });
+    reader.onload = (e) => {
+        compressImage(e.target.result, 800, (b64) => {
+            // 把图片存到全局变量，等待用户确认
+            pendingWallpaper = b64;
+            // 显示预览区域
+            const preview = document.getElementById('wallpaper-preview');
+            const img = document.getElementById('wallpaper-preview-img');
+            img.src = b64;
+            preview.style.display = 'block';
+        });
+    };
     reader.readAsDataURL(input.files[0]);
+}
+function confirmWallpaper() {
+    if (!pendingWallpaper) return;
+    const t = getTheme();
+    t.wallpaper = pendingWallpaper;
+    saveTheme(t);
+    applyTheme();
+    pendingWallpaper = null;
+    document.getElementById('wallpaper-preview').style.display = 'none';
+    alert('壁纸已应用！');
+}
+
+function cancelWallpaper() {
+    pendingWallpaper = null;
+    document.getElementById('wallpaper-preview').style.display = 'none';
 }
 function clearWallpaper() { const t = getTheme(); t.wallpaper = ''; saveTheme(t); applyTheme(); }
 
@@ -315,8 +341,43 @@ function loadLockSettings() {
 }
 function setLockType(type) {
     const l = getLockSettings();
-    l.type = l.type === type ? '' : type;
-    localStorage.setItem('myLock', JSON.stringify(l));
+    if (l.type === type) {
+        // 再次点击 = 取消设置
+        l.type = '';
+        l.password = '';
+        l.pattern = '';
+        localStorage.setItem('myLock', JSON.stringify(l));
+        loadLockSettings();
+        alert('已取消应用锁');
+        return;
+    }
+
+    if (type === 'password') {
+        const pwd = prompt('请设置密码（4位数字）：');
+        if (pwd === null) return;
+        if (!/^\d{4}$/.test(pwd)) { alert('请输入4位数字密码'); return; }
+        const confirm = prompt('请再次输入密码：');
+        if (confirm !== pwd) { alert('两次密码不一致'); return; }
+        l.type = 'password';
+        l.password = pwd;
+        localStorage.setItem('myLock', JSON.stringify(l));
+        alert('密码锁设置成功！');
+    } else if (type === 'pattern') {
+        // 简单用密码模拟图形，提示用户
+        const pwd = prompt('图形锁暂用密码代替，请设置4位数字：');
+        if (pwd === null) return;
+        if (!/^\d{4}$/.test(pwd)) { alert('请输入4位数字'); return; }
+        l.type = 'pattern';
+        l.pattern = pwd;
+        localStorage.setItem('myLock', JSON.stringify(l));
+        alert('图形锁设置成功！（模拟）');
+    } else if (type === 'fingerprint') {
+        if (confirm('是否启用指纹解锁？（模拟，点击确定后需录入指纹）')) {
+            l.type = 'fingerprint';
+            localStorage.setItem('myLock', JSON.stringify(l));
+            alert('指纹锁已启用（模拟）');
+        }
+    }
     loadLockSettings();
 }
 
@@ -328,6 +389,16 @@ function selectEventChip(type) {
 function selectEventChip2(type) {
     document.getElementById('event-name').value = type;
     document.querySelectorAll('#page-add-event .chip').forEach(c => c.classList.toggle('active', c.dataset.type === type));
+}
+
+function selectGiftType(type) {
+    selectedGiftType = type;
+    document.querySelectorAll('#page-add-gift .chip[data-gift-type]').forEach(c => {
+        c.classList.toggle('active', c.dataset.giftType === type);
+    });
+    document.querySelectorAll('#page-add-event .chip[data-gift-type]').forEach(c => {
+        c.classList.toggle('active', c.dataset.giftType === type);
+    });
 }
 
 // ================= 物品 =================
@@ -397,7 +468,7 @@ function updateDashboard() {
     document.getElementById('total-count').innerText = items.length + ' 件';
     let totalPrice = 0;
     items.forEach(i => totalPrice += parseFloat(i.price || 0));
-    document.querySelector('.hero-value').innerText = '¥ ' + totalPrice.toFixed(2);
+    document.getElementById('total-item-price').innerText = '¥ ' + totalPrice.toFixed(2);
     const records = getGiftRecords();
     let totalGift = 0;
     records.forEach(r => r.events.forEach(e => totalGift += e.amount));
@@ -536,7 +607,7 @@ function saveGiftPerson() {
     if (!person || !event || !amount) { alert('请填写随礼人、事件和金额！'); return; }
     let records = getGiftRecords();
     let existing = records.find(r => r.person === person);
-    const newEvent = { id: Date.now(), event, amount: parseFloat(amount), date, location };
+    const newEvent = { id: Date.now(), event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼' };
     if (existing) existing.events.push(newEvent);
     else records.push({ id: Date.now(), person, events: [newEvent] });
     localStorage.setItem('myGiftRecords', JSON.stringify(records));
@@ -584,7 +655,17 @@ function renderGiftEventList() {
     [...record.events].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(ev => {
         const div = document.createElement('div');
         div.className = 'event-card';
-        div.innerHTML = `<div class="event-header">${ev.event}</div><div class="event-info">💰 礼金：¥${ev.amount}</div><div class="event-info">📅 时间：${ev.date || '未记录'}</div><div class="event-info">📍 地点：${ev.location || '未记录'}</div>`;
+        // 根据类型设置背景色
+        const bgColor = ev.type === '收礼' ? '#d5f4e6' : '#fadbd8';
+        const borderColor = ev.type === '收礼' ? '#82c8a0' : '#d98880';
+        div.style.background = bgColor;
+        div.style.borderLeftColor = borderColor;
+        div.innerHTML = `
+            <div class="event-header">${ev.event} <span style="font-size:12px;color:#666;">(${ev.type || '随礼'})</span></div>
+            <div class="event-info">💰 礼金：¥${ev.amount}</div>
+            <div class="event-info">📅 时间：${ev.date || '未记录'}</div>
+            <div class="event-info">📍 地点：${ev.location || '未记录'}</div>
+        `;
         container.appendChild(div);
     });
 }
@@ -604,7 +685,7 @@ function saveGiftEvent() {
     let records = getGiftRecords();
     const record = records.find(r => r.id === currentGiftPersonId);
     if (!record) return;
-    record.events.push({ id: Date.now(), event, amount: parseFloat(amount), date, location });
+    record.events.push({ id: Date.now(), event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼' });
     localStorage.setItem('myGiftRecords', JSON.stringify(records));
     alert('事件添加成功！');
     renderGiftEventList();
@@ -870,6 +951,95 @@ function confirmDate() {
     closeDatePicker();
 }
 
+// ================= 看书进度 =================
+function getBooks() {
+    return JSON.parse(localStorage.getItem('myBooks')) || [];
+}
+
+function saveBook(book) {
+    let books = getBooks();
+    const idx = books.findIndex(b => b.id === book.id);
+    if (idx !== -1) books[idx] = book;
+    else books.push(book);
+    localStorage.setItem('myBooks', JSON.stringify(books));
+    renderBookProgress();
+}
+
+function renderBookProgress() {
+    const container = document.getElementById('book-progress-section');
+    if (!container) return;
+
+    const books = getBooks();
+    if (books.length === 0) {
+        container.innerHTML = `
+            <div class="card" onclick="showBookDetail()" style="cursor:pointer;">
+                <h3 style="margin-bottom:10px;">今天看书了嘛~ 📖</h3>
+                <p style="color:#999; font-size:14px;">点击添加一本正在读的书</p>
+            </div>`;
+        return;
+    }
+
+    // 默认显示最新一本
+    const book = books[books.length - 1];
+    const total = book.totalPages || 1;
+    const current = book.currentPages || 0;
+    const percent = Math.min(100, Math.round((current / total) * 100));
+    const estimated = parseFloat(book.estimatedHours) || 0;
+    const spent = parseFloat(book.spentHours) || 0;
+    const remaining = Math.max(0, estimated - spent).toFixed(1);
+
+    container.innerHTML = `
+        <div class="card" onclick="showBookDetail(${book.id})" style="cursor:pointer;">
+            <h3 style="margin-bottom:10px;">今天看书了嘛~ 📖</h3>
+            <div style="display:flex; justify-content:space-between; font-size:13px; color:#666; margin-bottom:6px;">
+                <span>${book.name}</span>
+                <span>已用 ${spent}h / 计划剩余 ${remaining}h</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width:${percent}%"></div>
+                <div class="progress-icon" style="left:${percent}%">📖</div>
+            </div>
+            <div style="text-align:right; font-size:12px; color:#999; margin-top:4px;">${current}/${total}页 (${percent}%)</div>
+        </div>`;
+}
+
+function showBookDetail(id) {
+    const books = getBooks();
+    let book = null;
+    if (id) book = books.find(b => b.id === id);
+    if (!book) {
+        // 新建
+        book = { id: Date.now(), name: '', startDate: '', totalPages: 0, currentPages: 0, estimatedHours: 0, spentHours: 0 };
+    }
+    // 填充到表单（需要新增一个页面或弹窗）
+    document.getElementById('book-name').value = book.name || '';
+    document.getElementById('book-start-date').value = book.startDate || '';
+    document.getElementById('book-total-pages').value = book.totalPages || '';
+    document.getElementById('book-current-pages').value = book.currentPages || '';
+    document.getElementById('book-estimated-hours').value = book.estimatedHours || '';
+    document.getElementById('book-spent-hours').value = book.spentHours || '';
+    // 存储当前编辑的 ID
+    document.getElementById('book-detail').dataset.bookId = book.id;
+    switchPage('page-book-detail');
+}
+
+function saveBookDetail() {
+    const id = parseInt(document.getElementById('book-detail').dataset.bookId);
+    const book = {
+        id: id || Date.now(),
+        name: document.getElementById('book-name').value.trim(),
+        startDate: document.getElementById('book-start-date').value,
+        totalPages: parseInt(document.getElementById('book-total-pages').value) || 0,
+        currentPages: parseInt(document.getElementById('book-current-pages').value) || 0,
+        estimatedHours: parseFloat(document.getElementById('book-estimated-hours').value) || 0,
+        spentHours: parseFloat(document.getElementById('book-spent-hours').value) || 0
+    };
+    if (!book.name) { alert('请填写书名'); return; }
+    saveBook(book);
+    alert('保存成功！');
+    switchPage('page-home');
+}
+
 // ================= 初始化 =================
 window.addEventListener('load', () => {
     applyTheme();
@@ -881,4 +1051,5 @@ window.addEventListener('load', () => {
     refreshDrawerInfo();
     applyCustomIcons();
     setTimeout(initCharts, 200);
+    renderBookProgress();
 });

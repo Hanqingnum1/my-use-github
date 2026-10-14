@@ -283,3 +283,34 @@ body.dark-mode .cal-cell.has-event { background: #3a3438; }
 body.dark-mode .important-card.level-提醒 { background: #3a2828; }
 body.dark-mode .important-card.level-重要 { background: #3a2424; }
 body.dark-mode .important-card.level-纪念 { background: #322838; }
+
+/* =============== 看书进度条 =============== */
+.progress-bar-bg {
+    position: relative;
+    height: 12px;
+    background: var(--divider);
+    border-radius: 6px;
+    margin: 8px 0 4px;
+}
+.progress-bar-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 6px;
+    transition: width 0.3s;
+}
+.progress-icon {
+    position: absolute;
+    top: -10px;
+    transform: translateX(-50%);
+    font-size: 16px;
+}
+
+/* =============== 壁纸预览 =============== */
+#wallpaper-preview img {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+
+/* =============== 深色模式下进度条适配 =============== */
+body.dark-mode .progress-bar-bg {
+    background: #4a4a52;
+}

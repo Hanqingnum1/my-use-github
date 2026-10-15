@@ -34,7 +34,7 @@ jobs:
       - name: 把网页文件收集到 www 目录
         run: |
           mkdir -p www
-          cp index.html app.js style.css echarts.min.js lunar.js www/
+          cp index.html app.js style.css www/
 
       - name: 生成安卓工程并同步
         run: |

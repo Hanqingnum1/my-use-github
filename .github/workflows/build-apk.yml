@@ -1,0 +1,60 @@
+name: Build APK
+
+# 触发条件：推送到 main 分支时自动打包；也可以手动点 "Run workflow"
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# 允许这个工作流创建 Release（发布页）
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 安装 Java（JDK 21）
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: 安装 Capacitor 依赖
+        run: npm install
+
+      - name: 把网页文件收集到 www 目录
+        run: |
+          mkdir -p www
+          cp index.html app.js style.css echarts.min.js lunar.js www/
+
+      - name: 生成安卓工程并同步
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: 打包 APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: 整理 APK 文件名
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/my-use-github-v1.0.${{ github.run_number }}.apk
+
+      - name: 发布到 Releases 页面
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: my-use-github v1.0.${{ github.run_number }}
+          files: dist/*.apk

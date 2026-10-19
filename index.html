@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>我的生活</title>
 <link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.6.12/lunar.js"></script>
+<script src="echarts.min.js"></script>
+<script src="lunar.js"></script>
 </head>
 <body>
 
@@ -31,7 +31,7 @@
     </div>
 
     <div class="card">
-        <div class="quick-grid">
+                <div class="quick-grid">
             <div class="quick-item" onclick="switchPage('page-add')">
                 <div class="quick-icon" style="background:#fde8e0; color:#e07b53;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
                 <span>物品</span>
@@ -43,6 +43,10 @@
             <div class="quick-item" onclick="switchPage('page-add-important')">
                 <div class="quick-icon" style="background:#efe4fb; color:#a98bcc;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
                 <span>重要日期</span>
+            </div>
+            <div class="quick-item" onclick="showBookDetail()">
+                <div class="quick-icon" style="background:#e8f4ff; color:#2e86de;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+                <span>书本</span>
             </div>
         </div>
     </div>
@@ -163,15 +167,21 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><polyline points="20 6 9 17 4 12"/></svg>
         <span id="item-submit-text">添加物品</span>
     </div>
+
 </div>
 
 <!-- ============ 3. 全部物品 ============ -->
 <div id="page-all-items" class="page">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 6px;">
         <h3 class="page-main-title">全部物品</h3>
-        <span onclick="toggleSearchBar()" style="cursor:pointer; color:var(--primary); display:inline-flex;">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </span>
+        <div style="display:inline-flex; align-items:center; gap:14px;">
+            <span onclick="switchPage('page-item-distribution')" style="cursor:pointer; color:var(--primary); display:inline-flex;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>
+            </span>
+            <span onclick="toggleSearchBar()" style="cursor:pointer; color:var(--primary); display:inline-flex;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+        </div>
     </div>
 
     <div id="search-bar-wrapper" style="display:none; margin-bottom:12px;">
@@ -234,9 +244,14 @@
         <!-- 第一行：标题 + 搜索图标 -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 6px;">
         <h3 class="page-main-title">随礼记录</h3>
-        <span onclick="toggleGiftSearchBar()" style="cursor:pointer; color:var(--primary); display:inline-flex;">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </span>
+        <div style="display:inline-flex; align-items:center; gap:14px;">
+            <span onclick="switchPage('page-gift-distribution')" style="cursor:pointer; color:var(--primary); display:inline-flex;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>
+            </span>
+            <span onclick="toggleGiftSearchBar()" style="cursor:pointer; color:var(--primary); display:inline-flex;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+        </div>
     </div>
 
     <!-- 搜索栏（默认收起） -->
@@ -402,8 +417,8 @@
 
 <!-- ============ 事件详情 ============ -->
 <div id="page-event-detail" class="page">
-    <div style="display:flex;align-items:center;margin-bottom:15px;padding:0 10px;">
-        <span onclick="switchPage('page-gift-detail')" style="font-size:24px;margin-right:10px;cursor:pointer;">←</span>
+    <div class="page-top-bar">
+        <span onclick="switchPage('page-gift-detail')" class="back-arrow">←</span>
         <h3>事件详情</h3>
     </div>
     <div id="event-detail-content"></div>
@@ -555,14 +570,16 @@
     <div id="important-detail-content"></div>
     <button class="btn-primary" onclick="editImportantDate()">编辑</button>
 </div>
-
 <!-- ============ 10. 日历页 ============ -->
 <div id="page-important-dates" class="page">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 6px;">
+        <h3 class="page-main-title">重要日期</h3>
+    </div>
     <div id="calendar-view" class="card">
         <div class="cal-header">
             <div class="cal-title-group">
                 <span class="month-arrow" onclick="changeMonth(-1)">◀</span>
-                <span id="calendar-month-title" class="month-title-text">2026年10月</span>
+                <span id="calendar-month-title" class="month-title-text" onclick="openCalendarPicker()" style="cursor:pointer;">2026年10月</span>
                 <span class="month-arrow" onclick="changeMonth(1)">▶</span>
             </div>
             <div class="cal-actions">
@@ -577,11 +594,16 @@
         <div id="calendar-grid" class="calendar-grid"></div>
         <div id="important-detail-card" style="display:none;margin-top:15px;"></div>
     </div>
+    <!-- 接下来 7 天 -->
+    <div id="upcoming-7days-card" class="upcoming-7days-card">
+        <div class="upcoming-7days-title">📅 接下来 7 天</div>
+        <div id="upcoming-7days-list"></div>
+    </div>
     <div id="important-list-view" style="display:none;">
         <div class="list-header">
-            <span onclick="backToCalendar()" style="cursor:pointer;font-size:20px;">←</span>
+            <span onclick="backToCalendar()" class="back-arrow">←</span>
             <h3 style="margin-left:10px;">重要日期</h3>
-            <input type="text" id="important-list-search" oninput="renderImportantList()" placeholder="搜索..." style="flex:1;margin-left:10px;padding:8px 12px;border-radius:10px;border:1px solid #eee;font-size:14px;">
+            <input type="text" id="important-list-search" oninput="renderImportantList()" placeholder="搜索..." style="flex:1;margin-left:10px;padding:8px 12px;border-radius:10px;border:1px solid var(--divider);font-size:14px;background:var(--bg-color);color:var(--text-main);">
         </div>
         <div id="important-list-items"></div>
     </div>
@@ -590,18 +612,97 @@
 <!-- ============ 11. 书籍详情 ============ -->
 <div id="page-book-detail" class="page">
     <div class="page-top-bar">
-        <span onclick="switchPage('page-home')" class="back-arrow">←</span>
-        <h3>书籍详情</h3>
+        <span onclick="switchPage('page-book-list')" class="back-arrow">←</span>
+        <h3 id="book-edit-title" style="color:#8B6F47;">书籍详情</h3>
     </div>
-    <div class="card" id="book-detail">
-        <div class="form-group"><label>书名</label><input type="text" id="book-name" class="form-input"></div>
-        <div class="form-group"><label>开始阅读时间</label><input type="text" id="book-start-date" readonly inputmode="none" placeholder="点击选择" class="form-input" onclick="openDatePicker('book-start-date')" onfocus="this.blur()"></div>
-        <div class="form-group"><label>总页数</label><input type="number" id="book-total-pages" class="form-input"></div>
-        <div class="form-group"><label>目前页数</label><input type="number" id="book-current-pages" class="form-input"></div>
-        <div class="form-group"><label>预计用时（天）</label><input type="number" id="book-estimated-hours" step="0.5" class="form-input"></div>
-        <div class="form-group"><label>已用时（天）</label><input type="number" id="book-spent-hours" step="0.5" class="form-input"></div>
-        <button class="btn-primary" onclick="saveBookDetail()">保存</button>
+
+    <div class="book-form-hero">
+        <div class="book-form-hero-icon">📖</div>
+        <div class="book-form-hero-text">记录你的阅读旅程</div>
     </div>
+
+    <div class="card book-form-card" id="book-detail">
+        <div class="form-group">
+            <label>书名</label>
+            <input type="text" id="book-name" class="form-input book-input">
+        </div>
+        <div class="form-group">
+            <label>开始阅读时间 <span style="color:#e74c3c;">*</span></label>
+            <input type="text" id="book-start-date" readonly inputmode="none" placeholder="点击选择（必填）" class="form-input book-input" onclick="openDatePicker('book-start-date')" onfocus="this.blur()">
+        </div>
+        <div class="form-group">
+            <label>总页数</label>
+            <input type="number" id="book-total-pages" class="form-input book-input">
+        </div>
+        <div class="form-group">
+            <label>目前页数</label>
+            <input type="number" id="book-current-pages" class="form-input book-input">
+        </div>
+        <div class="form-group">
+            <label>预计用时（天）</label>
+            <input type="number" id="book-estimated-hours" step="0.5" class="form-input book-input">
+        </div>
+        <div class="form-group">
+            <label>已用时（天，自动计算）</label>
+            <input type="text" id="book-spent-hours" class="form-input book-input" readonly placeholder="填完开始时间后自动计算">
+        </div>
+        <button class="btn-primary book-save-btn" onclick="saveBookDetail()">保存</button>
+    </div>
+</div>
+
+<!-- ============ 15. 书本列表 ============ -->
+<div id="page-book-list" class="page">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 6px;">
+        <div style="display:inline-flex; align-items:center;">
+            <span onclick="switchPage('page-home')" class="back-arrow">←</span>
+            <h3 class="page-main-title" style="margin-left:4px;">我的书本</h3>
+        </div>
+        <span onclick="toggleBookSearchBar()" style="cursor:pointer; color:var(--primary); display:inline-flex;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </span>
+    </div>
+
+    <div id="book-search-bar-wrapper" style="display:none; margin-bottom:12px;">
+        <input type="text" id="book-search-input" oninput="renderBookList()" placeholder="搜索书名..." class="form-input-rounded">
+    </div>
+
+    <div class="filter-bar">
+        <select id="book-filter-status" onchange="setBookFilterStatus(this.value)" class="filter-select">
+            <option value="all">全部</option>
+            <option value="reading">在读</option>
+            <option value="done">读完</option>
+        </select>
+        <select id="book-filter-sort" onchange="setBookSort(this.value)" class="filter-select">
+            <option value="default">默认</option>
+            <option value="name">名称</option>
+            <option value="progress">进度</option>
+        </select>
+        <button class="dir-toggle" id="book-sort-dir-btn" onclick="toggleBookSortDir()" title="切换排序方向">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        </button>
+        <button class="view-toggle" id="book-view-toggle-btn" onclick="toggleBookViewMode()" title="切换视图">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+    </div>
+
+    <div id="book-list" class="items-list-list"></div>
+
+    <button class="floating-add-btn" onclick="showBookDetail()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px; vertical-align:middle;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        添加书本
+    </button>
+</div>
+
+<!-- ============ 16. 书本详情（只读版） ============ -->
+<div id="page-book-view" class="page">
+    <div class="page-top-bar">
+        <span onclick="switchPage('page-book-list')" class="back-arrow">←</span>
+        <h3>书本详情</h3>
+        <span onclick="editBookFromView()" style="margin-left:auto; color:var(--primary); cursor:pointer; padding:0 10px; display:inline-flex;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </span>
+    </div>
+    <div id="book-view-content"></div>
 </div>
 
 <!-- ============ 12. 物品分布饼图 ============ -->
@@ -730,27 +831,7 @@
             <label class="switch"><input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode(this.checked)"><span class="slider"></span></label>
         </div>
     </div>
-    <div class="card">
-        <h4 class="section-title">背景壁纸</h4>
-        <div style="display:flex; gap:12px;">
-            <label for="wallpaper-upload" class="btn-secondary" style="width:auto;padding:10px 16px;font-size:14px;margin:0;cursor:pointer;">上传壁纸</label>
-            <button class="btn-secondary" style="width:auto;padding:10px 16px;font-size:14px;margin:0;" onclick="clearWallpaper()">清除壁纸</button>
-        </div>
-        <input type="file" id="wallpaper-upload" accept="image/*" style="display:none;" onchange="uploadWallpaper(this)">
-        <div id="wallpaper-crop-area" style="display:none; margin-top:15px;">
-            <p style="font-size:12px; color:#666; margin-bottom:8px;">拖动图片选择显示区域：</p>
-            <div style="display:flex; justify-content:center;">
-                <div id="wallpaper-crop-window" style="position:relative; width:220px; height:390px; overflow:hidden; border-radius:16px; background:#000; touch-action:none; cursor:grab; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
-                    <img id="wallpaper-crop-img" style="position:absolute; user-select:none; pointer-events:none; max-width:none;">
-                    <div style="position:absolute; inset:0; border:2px dashed rgba(255,255,255,0.5); border-radius:16px; pointer-events:none; box-sizing:border-box;"></div>
-                </div>
-            </div>
-            <div style="display:flex; gap:10px; margin-top:12px;">
-                <button class="btn-primary" style="flex:1; padding:10px; font-size:14px;" onclick="confirmWallpaperCrop()">确认使用</button>
-                <button class="btn-secondary" style="flex:1; padding:10px; font-size:14px; margin:0;" onclick="cancelWallpaper()">取消</button>
-            </div>
-        </div>
-    </div>
+    
     <div class="card">
         <h4 class="section-title">导航图标定制</h4>
         <p style="font-size:12px;color:#999;margin-bottom:12px;">上传一张图片，从中选择 4 个区域，分别作为底部导航的图标</p>
@@ -817,8 +898,10 @@
     </div>
 </div>
 
+<div id="important-menu-overlay" class="menu-overlay" onclick="closeImportantMenu()"></div>
+
 <!-- 筛选/过渡菜单 -->
-<div id="important-menu" style="display:none;position:absolute;right:20px;top:80px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.15);padding:15px;z-index:1000;min-width:220px;">
+<div id="important-menu" style="display:none;position:fixed;right:20px;top:80px;background:var(--card-bg);color:var(--text-main);border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.15);padding:15px;z-index:1000;min-width:220px;">
     <div style="margin-bottom:15px;">
         <div style="font-weight:bold;margin-bottom:8px;font-size:14px;">筛选</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -839,7 +922,7 @@
 </div>
 
 <!-- 日期选择器 -->
-<div id="date-picker-modal" class="modal" style="display:none;">
+<div id="date-picker-modal" class="modal" style="display:none;" onclick="if(event.target===this) closeDatePicker()">
     <div class="modal-content">
         <div class="modal-header"><span id="picker-title">选择年份</span><span class="close-btn" onclick="closeDatePicker()">×</span></div>
         <div id="picker-body" class="picker-body"></div>
@@ -864,7 +947,7 @@
 </div>
 
 <!-- ============ 模板选择弹窗 ============ -->
-<div id="template-modal" class="modal" style="display:none; z-index: 10020;">
+<div id="template-modal" class="modal" style="display:none; z-index: 10020;" onclick="if(event.target===this) closeTemplateModal()">
     <div class="modal-content" style="border-radius:20px 20px 0 0; max-height:85vh;">
         <div class="modal-header">
             <span id="template-modal-title">选择模板</span>
@@ -916,5 +999,36 @@
 </nav>
 
 <script src="app.js"></script>
+
+<!-- 全局确认弹窗 -->
+<div id="confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10060; justify-content:center; align-items:center;">
+    <div style="background:var(--card-bg); border-radius:20px; padding:24px 20px; width:80%; max-width:320px; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+        <div id="confirm-title" style="font-size:17px; font-weight:bold; color:var(--text-main); margin-bottom:10px;">确认删除</div>
+        <div id="confirm-message" style="font-size:14px; color:var(--text-sub); margin-bottom:22px; line-height:1.5;">确定要删除吗？</div>
+        <div style="display:flex; gap:10px;">
+            <button id="confirm-cancel-btn" onclick="closeConfirm()" style="flex:1; padding:12px; background:var(--bg-color); color:var(--text-main); border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer;">取消</button>
+            <button id="confirm-ok-btn" onclick="confirmOk()" style="flex:1; padding:12px; background:#d98880; color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer;">删除</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+<!-- 全局裁剪浮层 -->
+<div id="crop-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10050; justify-content:center; align-items:center;">
+    <div style="background:var(--card-bg); border-radius:20px; padding:20px; max-width:90%;">
+        <p id="crop-tip-text" style="font-size:13px; color:var(--text-sub); margin-bottom:12px; text-align:center;">拖动图片选择显示区域：</p>
+        <div style="display:flex; justify-content:center;">
+            <div id="wallpaper-crop-window" style="position:relative; width:220px; height:390px; overflow:hidden; border-radius:16px; background:#000; touch-action:none; cursor:grab; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+                <img id="wallpaper-crop-img" style="position:absolute; user-select:none; pointer-events:none; max-width:none;">
+                <div id="crop-border" style="position:absolute; inset:0; border:2px dashed rgba(255,255,255,0.5); border-radius:16px; pointer-events:none; box-sizing:border-box;"></div>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="btn-primary" style="flex:1; padding:10px; font-size:14px;" onclick="confirmWallpaperCrop()">确认使用</button>
+            <button class="btn-secondary" style="flex:1; padding:10px; font-size:14px; margin:0;" onclick="cancelWallpaper()">取消</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>

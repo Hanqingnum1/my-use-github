@@ -2,6 +2,7 @@
 let currentInputId = null;
 let selectedYear = null, selectedMonth = null, selectedDay = null;
 let pickerStep = 'year';
+let pickerMode = 'full';   // 'full' = 选年月日, 'year-month' = 只选年月
 let myChart = null, myGiftChart = null;
 let editingItemId = null;
 let currentGiftPersonId = null;
@@ -27,6 +28,7 @@ let patternDrawing = false;
 let patternFirstAttempt = null;   // 第一次绘制的图案（用于二次确认）
 let patternMode = 'set';          // 'set' = 设置新图案, 'verify' = 验证已有图案
 // 壁纸拖动选区相关
+let cropTarget = 'wallpaper';   // 'wallpaper' 或 'avatar'
 let cropImgSrc = null;
 let cropImgNaturalW = 0;
 let cropImgNaturalH = 0;
@@ -44,6 +46,11 @@ let currentDiaryTemplate = null;  // 当前选中的模板
 let editingDiaryId = null;        // 正在编辑的日记 ID
 let isLongPress = false;          // 长按标志
 let longPressTimer = null;        // 长按计时器
+// 全局确认弹窗
+let confirmCallback = null;
+// 长按删除
+let itemLongPressTimer = null;
+let itemLongPressFired = false;
 // 全部物品页面状态
 let allItemsTopFilter = '';       // '' | 'held' | 'expiring' | 'warranty'
 let allItemsFilter = 'all';
@@ -63,6 +70,14 @@ let giftCategoryFilter = '';      // '' 或事件类型
 let giftSort = 'default';
 let giftSortDir = 'desc';
 let giftView = 'list';
+// 自动计算已用时
+let computedSpentDays = 0;
+// 书本列表页
+let bookFilterStatus = 'all';
+let bookSort = 'default';
+let bookSortDir = 'desc';
+let bookView = 'list';
+let currentBookViewId = null;
 
 // 图标选择相关
 let iconSrcImage = null;
@@ -111,18 +126,35 @@ function switchPage(pageId) {
         if (sw) sw.style.display = 'none';
         if (si) si.value = '';
         renderGiftList();
-    }else if (pageId === 'page-important-dates') {
+    }
+    else if (pageId === 'page-important-dates') {
         document.getElementById('nav-important').classList.add('active');
         backToCalendar();
-        } else if (['page-add','page-add-gift','page-gift-detail','page-add-event','page-add-important','page-important-detail','page-profile','page-theme','page-backup','page-lock','page-about','page-event-detail','page-diary-edit'].includes(pageId)) {
-        document.getElementById('nav-home').classList.add('active');
+        renderUpcoming7Days();
+        } else if (pageId === 'page-book-list') {
+            document.getElementById('nav-home').classList.add('active');
+            renderBookList();
+        } else if (['page-add','page-add-gift','page-gift-detail','page-add-event','page-add-important','page-important-detail','page-profile','page-theme','page-backup','page-lock','page-about','page-event-detail','page-diary-edit','page-book-detail','page-book-view'].includes(pageId)) {
+            document.getElementById('nav-home').classList.add('active');
         }
-    // 底部导航只在4个主页面显示
-    const mainPages = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates'];
-    const nav = document.querySelector('.bottom-nav');
-    if (nav) {
-        nav.style.display = mainPages.includes(pageId) ? 'flex' : 'none';
-    }
+        // 底部导航只在4个主页面显示
+        const mainPages = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates'];
+        const nav = document.querySelector('.bottom-nav');
+        if (nav) {
+            nav.style.display = mainPages.includes(pageId) ? 'flex' : 'none';
+        }
+        // 页面主题色
+        const themeMap = {
+            'page-all-items': '#4A90A4',
+            'page-gift-record': '#C0392B',
+            'page-important-dates': '#7B68A6',
+            'page-book-list': '#8B6F47',
+            'page-book-view': '#8B6F47',
+            'page-book-detail': '#8B6F47'
+        };
+        const pageColor = themeMap[pageId] || 'var(--primary)';
+        document.body.style.setProperty('--page-color', pageColor);
+        document.body.style.setProperty('--nav-active-color', pageColor);
     window.scrollTo(0, 0);
 }
 
@@ -169,9 +201,10 @@ function loadProfile() {
 function uploadAvatar(input) {
     if (!input.files[0]) return;
     const reader = new FileReader();
-    reader.onload = (e) => compressImage(e.target.result, 300, (b64) => {
-        const p = getProfile(); p.avatar = b64; saveProfile(p);
-        document.getElementById('profile-avatar-img').src = b64;
+    reader.onload = (e) => compressImage(e.target.result, 800, (b64) => {
+        cropTarget = 'avatar';
+        cropImgSrc = b64;
+        showCropWindow();
     });
     reader.readAsDataURL(input.files[0]);
 }
@@ -215,6 +248,7 @@ function uploadWallpaper(input) {
     const reader = new FileReader();
     reader.onload = (e) => {
         compressImage(e.target.result, 1200, (b64) => {
+            cropTarget = 'wallpaper';
             cropImgSrc = b64;
             showCropWindow();
         });
@@ -223,10 +257,28 @@ function uploadWallpaper(input) {
 }
 
 function showCropWindow() {
-    const area = document.getElementById('wallpaper-crop-area');
+    const overlay = document.getElementById('crop-overlay');
     const win = document.getElementById('wallpaper-crop-window');
     const img = document.getElementById('wallpaper-crop-img');
-    area.style.display = 'block';
+    const border = document.getElementById('crop-border');
+    overlay.style.display = 'flex';
+
+    // 根据裁剪目标设置窗口尺寸
+        if (cropTarget === 'avatar') {
+        win.style.width = '240px';
+        win.style.height = '240px';
+        win.style.borderRadius = '50%';
+        if (border) { border.style.borderRadius = '50%'; }
+    } else {
+        win.style.width = '220px';
+        win.style.height = '390px';
+        win.style.borderRadius = '16px';
+        if (border) { border.style.borderRadius = '16px'; }
+    }
+        const tipEl = document.getElementById('crop-tip-text');
+    if (tipEl) {
+        tipEl.textContent = cropTarget === 'avatar' ? '拖动图片选择头像区域（正方形）：' : '拖动图片选择显示区域：';
+    }
 
     img.onload = () => {
         cropImgNaturalW = img.naturalWidth;
@@ -304,14 +356,24 @@ function confirmWallpaperCrop() {
     const winW = win.clientWidth;
     const winH = win.clientHeight;
 
-    // 提高输出清晰度
-    const outputScale = 2;
+    // 输出尺寸
+    let outW, outH;
+    if (cropTarget === 'avatar') {
+        outW = 200;
+        outH = 200;
+    } else {
+        const outputScale = 2;
+        const maxW = 800;
+        const scale = Math.min(outputScale, maxW / winW);
+        outW = Math.round(winW * scale);
+        outH = Math.round(winH * scale);
+    }
+
     const canvas = document.createElement('canvas');
-    canvas.width = winW * outputScale;
-    canvas.height = winH * outputScale;
+    canvas.width = outW;
+    canvas.height = outH;
     const ctx = canvas.getContext('2d');
 
-    // 窗口左上角在原始图片上的位置（像素）
     const srcX = (-cropImgX) * (cropImgNaturalW / cropImgDisplayW);
     const srcY = (-cropImgY) * (cropImgNaturalH / cropImgDisplayH);
     const srcW = winW * (cropImgNaturalW / cropImgDisplayW);
@@ -322,21 +384,30 @@ function confirmWallpaperCrop() {
         ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
         const croppedBase64 = canvas.toDataURL('image/jpeg', 0.85);
 
-        const t = getTheme();
-        t.wallpaper = croppedBase64;
-        saveTheme(t);
-        applyTheme();
+        if (cropTarget === 'avatar') {
+            const p = getProfile();
+            p.avatar = croppedBase64;
+            saveProfile(p);
+            const avatarImg = document.getElementById('profile-avatar-img');
+            if (avatarImg) avatarImg.src = croppedBase64;
+            showToast('头像已更新！');
+        } else {
+            const t = getTheme();
+            t.wallpaper = croppedBase64;
+            saveTheme(t);
+            applyTheme();
+            showToast('壁纸已应用！');
+        }
 
         cropImgSrc = null;
-        document.getElementById('wallpaper-crop-area').style.display = 'none';
-        alert('壁纸已应用！');
+        document.getElementById('crop-overlay').style.display = 'none';
     };
     img.src = cropImgSrc;
 }
 
 function cancelWallpaper() {
     cropImgSrc = null;
-    document.getElementById('wallpaper-crop-area').style.display = 'none';
+    document.getElementById('crop-overlay').style.display = 'none';
 }
 
 function clearWallpaper() { const t = getTheme(); t.wallpaper = ''; saveTheme(t); applyTheme(); }
@@ -386,7 +457,7 @@ function toggleIconCell(r, c, cellEl) {
         // 重新编号
         selectedIconCells.forEach((item, i) => item.num = i + 1);
     } else {
-        if (selectedIconCells.length >= 4) { alert('最多选择 4 个区域'); return; }
+        if (selectedIconCells.length >= 4) { showToast('最多选择 4 个区域', 'error'); return; }
         selectedIconCells.push({ row: r, col: c, num: selectedIconCells.length + 1 });
     }
     // 保存
@@ -459,7 +530,10 @@ function clearCustomIcons() {
 function updateStorageUsage() {
     let total = 0;
     for (let k in localStorage) {
-        if (localStorage.hasOwnProperty(k)) total += localStorage[k].length + k.length;
+        if (localStorage.hasOwnProperty(k)) {
+            // 估算字节数：中文按 2 字节，英文按 1 字节
+            total += new Blob([k + localStorage[k]]).size;
+        }
     }
     document.getElementById('storage-usage').textContent = (total / 1024).toFixed(1) + ' KB';
 }
@@ -468,7 +542,12 @@ function exportData() {
         items: JSON.parse(localStorage.getItem('myItems') || '[]'),
         giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'),
         importantDates: JSON.parse(localStorage.getItem('myImportantDates') || '[]'),
-        profile: getProfile(), theme: getTheme()
+        diaries: JSON.parse(localStorage.getItem('myDiaries') || '[]'),
+        books: JSON.parse(localStorage.getItem('myBooks') || '[]'),
+        customIcons: JSON.parse(localStorage.getItem('myCustomIcons') || '{}'),
+        lock: JSON.parse(localStorage.getItem('myLock') || '{}'),
+        profile: getProfile(),
+        theme: getTheme()
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -476,6 +555,7 @@ function exportData() {
     a.href = url; a.download = 'my-life-backup-' + Date.now() + '.json';
     a.click(); URL.revokeObjectURL(url);
 }
+
 function importData(input) {
     if (!input.files[0]) return;
     const reader = new FileReader();
@@ -486,17 +566,24 @@ function importData(input) {
                 if (data.items) localStorage.setItem('myItems', JSON.stringify(data.items));
                 if (data.giftRecords) localStorage.setItem('myGiftRecords', JSON.stringify(data.giftRecords));
                 if (data.importantDates) localStorage.setItem('myImportantDates', JSON.stringify(data.importantDates));
+                if (data.diaries) localStorage.setItem('myDiaries', JSON.stringify(data.diaries));
+                if (data.books) localStorage.setItem('myBooks', JSON.stringify(data.books));
+                if (data.customIcons) localStorage.setItem('myCustomIcons', JSON.stringify(data.customIcons));
+                if (data.lock) localStorage.setItem('myLock', JSON.stringify(data.lock));
                 if (data.profile) localStorage.setItem('myProfile', JSON.stringify(data.profile));
                 if (data.theme) localStorage.setItem('myTheme', JSON.stringify(data.theme));
-                alert('导入成功！'); location.reload();
+                showToast('导入成功！'); location.reload();
             }
-        } catch (err) { alert('文件格式错误！'); }
+        } catch (err) { showToast('文件格式错误！', 'error'); }
     };
     reader.readAsText(input.files[0]);
 }
+
 function clearAllData() {
     if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
-        localStorage.clear(); alert('已清空'); location.reload();
+        ['myItems','myGiftRecords','myImportantDates','myProfile','myTheme',
+         'myDiaries','myBooks','myCustomIcons','myLock'].forEach(k => localStorage.removeItem(k));
+        showToast('已清空'); location.reload();
     }
 }
 
@@ -516,25 +603,28 @@ function setLockType(type) {
         l.pattern = '';
         localStorage.setItem('myLock', JSON.stringify(l));
         loadLockSettings();
-        alert('已取消应用锁');
+        showToast('已取消应用锁');
         return;
     }
 
     if (type === 'password') {
         const pwd = prompt('请设置密码（4位数字）：');
         if (pwd === null) return;
-        if (!/^\d{4}$/.test(pwd)) { alert('请输入4位数字密码'); return; }
+        if (!/^\d{4}$/.test(pwd)) { showToast('请输入4位数字密码', 'error'); return; }
         const confirmPwd = prompt('请再次输入密码：');
-        if (confirmPwd !== pwd) { alert('两次密码不一致'); return; }
+        if (confirmPwd !== pwd) { showToast('两次密码不一致', 'error'); return; }
         l.type = 'password';
         l.password = pwd;
+        l.pattern = '';
         localStorage.setItem('myLock', JSON.stringify(l));
-        alert('密码锁设置成功！');
+        showToast('密码锁设置成功！');
     } else if (type === 'fingerprint') {
         if (confirm('是否启用指纹解锁？（模拟，点击确定后需录入指纹）')) {
             l.type = 'fingerprint';
+            l.password = '';
+            l.pattern = '';
             localStorage.setItem('myLock', JSON.stringify(l));
-            alert('指纹锁已启用（模拟）');
+            showToast('指纹锁已启用（模拟）');
         }
     }
     // 注意：pattern 分支已删除，图形锁走 openPatternLock()
@@ -546,6 +636,18 @@ function selectEventChip(type) {
     document.getElementById('gift-event').value = type;
     document.querySelectorAll('#page-add-gift .chip').forEach(c => c.classList.toggle('active', c.dataset.type === type));
 }
+
+function selectGiftType(type) {
+    selectedGiftType = type;
+    // 只影响当前可见的页面，避免两个页面互相干扰
+    document.querySelectorAll('#page-add-gift .chip[data-gift-type]').forEach(c => {
+        c.classList.toggle('active', c.dataset.giftType === type);
+    });
+    document.querySelectorAll('#page-add-event .chip[data-gift-type]').forEach(c => {
+        c.classList.toggle('active', c.dataset.giftType === type);
+    });
+}
+
 function selectEventChip2(type) {
     document.getElementById('event-name').value = type;
     document.querySelectorAll('#page-add-event .chip').forEach(c => c.classList.toggle('active', c.dataset.type === type));
@@ -773,6 +875,16 @@ function clampQuantity() {
 
 function getItems() { return JSON.parse(localStorage.getItem('myItems')) || []; }
 
+function deleteItem() {
+    if (!editingItemId) return;
+    if (!confirm('确定删除这件物品吗？')) return;
+    let items = getItems().filter(i => i.id !== editingItemId);
+    localStorage.setItem('myItems', JSON.stringify(items));
+    editingItemId = null;
+    showToast('已删除');
+    switchPage('page-all-items');
+}
+
 function saveItem() {
     const name = document.getElementById('item-name').value.trim();
     const category = selectedCategoryName;
@@ -780,8 +892,8 @@ function saveItem() {
     const quantity = document.getElementById('item-quantity').value || 1;
     const remark = document.getElementById('item-remark').value.trim();
 
-    if (!name) { alert('请填写物品名称！'); return; }
-    if (!category) { alert('请选择分类！'); return; }
+    if (!name) { showToast('请填写物品名称！', 'error'); return; }
+    if (!category) { showToast('请选择分类！', 'error'); return; }
 
     const images = editingItemImages.filter(x => x);
     const mainImage = images[0] || '';
@@ -806,7 +918,7 @@ function saveItem() {
                     status, acquireMethod, remark
                 };
             }
-            alert('修改成功！');
+            showToast('修改成功！');
         } else {
             items.push({
                 id: Date.now(),
@@ -816,7 +928,7 @@ function saveItem() {
                 purchaseDate, expiryDate, warrantyDate,
                 status, acquireMethod, remark
             });
-            alert('保存成功！');
+            showToast('保存成功！');
         }
         localStorage.setItem('myItems', JSON.stringify(items));
         resetForm();
@@ -828,7 +940,6 @@ function saveItem() {
 
 function compressImage(base64Str, maxWidth, callback) {
     const img = new Image();
-    img.src = base64Str;
     img.onload = () => {
         const canvas = document.createElement('canvas');
         let w = img.width, h = img.height;
@@ -837,6 +948,10 @@ function compressImage(base64Str, maxWidth, callback) {
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         callback(canvas.toDataURL('image/jpeg', 0.7));
     };
+    img.onerror = () => {
+        showToast('图片读取失败，请换一张', 'error');
+    };
+    img.src = base64Str;
 }
 
 function resetForm() {
@@ -871,6 +986,9 @@ function resetForm() {
     document.querySelectorAll('#page-add .chip[data-status]').forEach(c => {
         c.classList.toggle('active', c.dataset.status === '持有中');
     });
+
+    const delBtn = document.getElementById('item-delete-btn');
+    if (delBtn) delBtn.style.display = 'none';
 }
 
 function updateDashboard() {
@@ -881,7 +999,7 @@ function updateDashboard() {
     document.getElementById('total-item-price').innerText = '¥ ' + totalPrice.toFixed(2);
     const records = getGiftRecords();
     let totalGift = 0;
-    records.forEach(r => r.events.forEach(e => totalGift += e.amount));
+    records.forEach(r => (r.events || []).forEach(e => totalGift += (e.amount || 0)));
     document.getElementById('total-gift-amount').innerText = '¥ ' + totalGift.toFixed(2);
 }
 
@@ -892,7 +1010,24 @@ function getDaysRemaining(dateString) {
     return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
 }
 
-function toggleFilterMenu() { const m = document.getElementById('filter-menu'); m.style.display = m.style.display === 'none' ? 'block' : 'none'; }
+function toggleFilterMenu() {
+    const m = document.getElementById('filter-menu');
+    const o = document.getElementById('filter-menu-overlay');
+    const isOpen = m.style.display !== 'none';
+    if (isOpen) {
+        m.style.display = 'none';
+        if (o) o.style.display = 'none';
+    } else {
+        m.style.display = 'block';
+        if (o) o.style.display = 'block';
+    }
+}
+function closeFilterMenu() {
+    const m = document.getElementById('filter-menu');
+    const o = document.getElementById('filter-menu-overlay');
+    if (m) m.style.display = 'none';
+    if (o) o.style.display = 'none';
+}
 function setFilterType(t) { filterType = t; updateFilterButtons(); renderItemsList(); }
 function setFilterStatus(s) { filterStatus = s; updateFilterButtons(); renderItemsList(); }
 function updateFilterButtons() {
@@ -1112,6 +1247,17 @@ function renderItemsList() {
                 </div>
             `;
         }
+        // 长按删除
+        bindLongPress(div, () => {
+            showConfirm('删除物品', `确定删除「${item.name}」吗？删除后无法恢复。`, () => {
+                let items = getItems().filter(i => i.id !== item.id);
+                localStorage.setItem('myItems', JSON.stringify(items));
+                showToast('已删除');
+                renderItemsList();
+                updateItemStats();
+            });
+        });
+
         container.appendChild(div);
     });
 }
@@ -1157,6 +1303,9 @@ function editItem(id) {
         c.classList.toggle('active', c.dataset.status === selectedItemStatus);
     });
 
+    const delBtn = document.getElementById('item-delete-btn');
+    if (delBtn) delBtn.style.display = 'block';
+
     switchPage('page-add');
 }
 
@@ -1167,7 +1316,10 @@ function initItemChart() {
     if (myChart) myChart.dispose();
     myChart = echarts.init(itemEl);
     const cc = {};
-    getItems().forEach(i => cc[i.category] = (cc[i.category] || 0) + 1);
+    getItems().forEach(i => {
+        const cat = i.category || '未分类';
+        cc[cat] = (cc[cat] || 0) + 1;
+    });
     const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
     myChart.setOption({
         tooltip: { trigger: 'item' },
@@ -1184,7 +1336,10 @@ function initGiftChart() {
     if (myGiftChart) myGiftChart.dispose();
     myGiftChart = echarts.init(giftEl);
     const cc = {};
-    getGiftRecords().forEach(r => r.events.forEach(e => cc[e.event] = (cc[e.event] || 0) + e.amount));
+    getGiftRecords().forEach(r => (r.events || []).forEach(e => {
+        const ev = e.event || '未分类';
+        cc[ev] = (cc[ev] || 0) + (e.amount || 0);
+    }));
     const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
     myGiftChart.setOption({
         tooltip: { trigger: 'item', formatter: '{b}: ¥{c}' },
@@ -1204,22 +1359,27 @@ function saveGiftPerson() {
     const date = document.getElementById('gift-date').value;
     const location = document.getElementById('gift-location').value.trim();
     const remark = document.getElementById('gift-remark').value.trim();
-    if (!person || !event || !amount) { alert('请填写随礼人、事件和金额！'); return; }
+    if (!person || !event || !amount) { showToast('请填写随礼人、事件和金额！', 'error'); return; }
 
     const photos = giftPhotos.filter(x => x);
     let records = getGiftRecords();
     let existing = records.find(r => r.person === person);
     const newEvent = { id: Date.now(), event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼', remark, photos, image: photos[0] || '' };
-    if (existing) existing.events.push(newEvent);
-    else records.push({ id: Date.now(), person, events: [newEvent] });
+    if (existing) {
+        if (!Array.isArray(existing.events)) existing.events = [];
+        existing.events.push(newEvent);
+    } else {
+        records.push({ id: Date.now(), person, events: [newEvent] });
+    }
     localStorage.setItem('myGiftRecords', JSON.stringify(records));
-    alert('保存成功！');
+    showToast('保存成功！');
 
     // 重置
     ['gift-person','gift-event','gift-date','gift-location','gift-remark'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('gift-amount').value = '';
     document.getElementById('gift-amount').style.display = 'none';
     document.querySelectorAll('#page-add-gift .chip').forEach(c => c.classList.remove('active'));
+    selectedGiftType = '随礼';
     giftPhotos = ['', '', ''];
     for (let i = 0; i < 3; i++) {
         const inp = document.getElementById('gift-image-' + i);
@@ -1234,7 +1394,7 @@ function updateGiftStats() {
     const records = getGiftRecords();
     let giftCount = 0, giftAmount = 0, receiveCount = 0, receiveAmount = 0;
     records.forEach(r => {
-        r.events.forEach(e => {
+        (r.events || []).forEach(e => {
             const t = e.type || '随礼';
             if (t === '收礼') { receiveCount++; receiveAmount += (e.amount || 0); }
             else { giftCount++; giftAmount += (e.amount || 0); }
@@ -1257,7 +1417,9 @@ function updateGiftCategoryOptions() {
     while (select.options.length > 1) select.remove(1);
     const records = getGiftRecords();
     const categories = new Set();
-    records.forEach(r => r.events.forEach(e => categories.add(e.event)));
+    records.forEach(r => (r.events || []).forEach(e => {
+        if (e.event) categories.add(e.event);
+    }));
     Array.from(categories).sort().forEach(cat => {
         const opt = document.createElement('option');
         opt.value = cat;
@@ -1323,7 +1485,7 @@ function renderGiftList() {
     let processed = records.map(r => {
         // 人名匹配
         const personMatch = !kw || (r.person || '').toLowerCase().includes(kw);
-        let events = r.events.slice();
+        let events = (r.events || []).slice();
 
         // 事件名或备注匹配
         if (kw) {
@@ -1339,7 +1501,7 @@ function renderGiftList() {
 
         // 如果人名匹配，即使事件没匹配也显示
         if (personMatch && kw && events.length === 0) {
-            events = r.events.filter(e => {
+            events = (r.events || []).filter(e => {
                 if (giftTopFilter === 'gift' && (e.type || '随礼') !== '随礼') return false;
                 if (giftTopFilter === 'receive' && e.type !== '收礼') return false;
                 if (giftCategoryFilter && e.event !== giftCategoryFilter) return false;
@@ -1419,6 +1581,16 @@ function renderGiftList() {
                 <div class="gift-total-new">¥${total}</div>
             `;
         }
+        // 长按删除这个人
+        bindLongPress(div, () => {
+            showConfirm('删除随礼记录', `确定删除「${record.person}」吗？他/她的所有随礼记录都会一起删除。`, () => {
+                let records = getGiftRecords().filter(r => r.id !== record.id);
+                localStorage.setItem('myGiftRecords', JSON.stringify(records));
+                showToast('已删除');
+                renderGiftList();
+            });
+        });
+
         container.appendChild(div);
     });
 }
@@ -1432,12 +1604,22 @@ function showGiftDetail(personId) {
     switchPage('page-gift-detail');
 }
 
+function deleteGiftPerson() {
+    if (!currentGiftPersonId) return;
+    if (!confirm('确定删除这个人吗？他/她的所有随礼记录都会一起删除。')) return;
+    let records = getGiftRecords().filter(r => r.id !== currentGiftPersonId);
+    localStorage.setItem('myGiftRecords', JSON.stringify(records));
+    currentGiftPersonId = null;
+    showToast('已删除');
+    switchPage('page-gift-record');
+}
+
 function renderGiftEventList() {
     const record = getGiftRecords().find(r => r.id === currentGiftPersonId);
     const container = document.getElementById('gift-event-list');
     if (!record || !container) return;
     container.innerHTML = '';
-    [...record.events].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(ev => {
+    [...(record.events || [])].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(ev => {
         const div = document.createElement('div');
                 div.className = 'event-card';
         const bgColor = ev.type === '收礼' ? '#d5f4e6' : '#fadbd8';
@@ -1452,6 +1634,28 @@ function renderGiftEventList() {
             <div class="event-info">📅 时间：${ev.date || '未记录'}</div>
             <div class="event-info">📍 地点：${ev.location || '未记录'}</div>
         `;
+                // 长按删除这条事件
+        bindLongPress(div, () => {
+            showConfirm('删除事件', `确定删除「${ev.event}」这条事件吗？`, () => {
+                let records = getGiftRecords();
+                const rec = records.find(r => r.id === currentGiftPersonId);
+                if (!rec) return;
+                rec.events = (rec.events || []).filter(e => e.id !== ev.id);
+                if (rec.events.length === 0) {
+                    records = records.filter(r => r.id !== currentGiftPersonId);
+                    localStorage.setItem('myGiftRecords', JSON.stringify(records));
+                    currentGiftPersonId = null;
+                    showToast('已删除');
+                    switchPage('page-gift-record');
+                } else {
+                    localStorage.setItem('myGiftRecords', JSON.stringify(records));
+                    showToast('已删除');
+                    renderGiftEventList();
+                }
+            });
+        });
+
+        container.appendChild(div);
         container.appendChild(div);
     });
 }
@@ -1460,7 +1664,7 @@ function renderGiftEventList() {
 function showEventDetail(eventId) {
     const record = getGiftRecords().find(r => r.id === currentGiftPersonId);
     if (!record) return;
-    const ev = record.events.find(e => e.id === eventId);
+    const ev = (record.events || []).find(e => e.id === eventId);
     if (!ev) return;
     currentEventId = eventId;
 
@@ -1483,7 +1687,7 @@ function showEventDetail(eventId) {
 function editGiftEvent() {
     const record = getGiftRecords().find(r => r.id === currentGiftPersonId);
     if (!record) return;
-    const ev = record.events.find(e => e.id === currentEventId);
+    const ev = (record.events || []).find(e => e.id === currentEventId);
     if (!ev) return;
 
     editingEventId = ev.id;
@@ -1491,6 +1695,21 @@ function editGiftEvent() {
     document.getElementById('event-amount').value = ev.amount || '';
     document.getElementById('event-date').value = ev.date || '';
     document.getElementById('event-location').value = ev.location || '';
+    document.getElementById('event-remark').value = ev.remark || '';
+
+    // 回填照片
+    if (ev.photos && Array.isArray(ev.photos)) {
+        eventPhotos = [ev.photos[0] || '', ev.photos[1] || '', ev.photos[2] || ''];
+    } else if (ev.image) {
+        eventPhotos = [ev.image, '', ''];
+    } else {
+        eventPhotos = ['', '', ''];
+    }
+    for (let i = 0; i < 3; i++) {
+        const inp = document.getElementById('event-image-' + i);
+        if (inp) inp.value = '';
+        renderEventPhotoSlot(i);
+    }
 
     // 选中类型
     selectedGiftType = ev.type || '随礼';
@@ -1510,8 +1729,17 @@ function editGiftEvent() {
 function showAddEventPage() {
     editingEventId = null;
     selectedGiftType = '随礼';
-    ['event-name','event-amount','event-date','event-location'].forEach(id => document.getElementById(id).value = '');
+    ['event-name','event-amount','event-date','event-location','event-remark'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
     document.querySelectorAll('#page-add-event .chip').forEach(c => c.classList.remove('active'));
+    eventPhotos = ['', '', ''];
+    for (let i = 0; i < 3; i++) {
+        const inp = document.getElementById('event-image-' + i);
+        if (inp) inp.value = '';
+        renderEventPhotoSlot(i);
+    }
     switchPage('page-add-event');
 }
 
@@ -1521,7 +1749,7 @@ function saveGiftEvent() {
     const date = document.getElementById('event-date').value;
     const location = document.getElementById('event-location').value.trim();
     const remark = document.getElementById('event-remark').value.trim();
-    if (!event || !amount) { alert('请填写事件和金额！'); return; }
+    if (!event || !amount) { showToast('请填写事件和金额！', 'error'); return; }
 
     let records = getGiftRecords();
     const record = records.find(r => r.id === currentGiftPersonId);
@@ -1529,21 +1757,29 @@ function saveGiftEvent() {
 
     const photos = eventPhotos.filter(x => x);
 
+    if (!Array.isArray(record.events)) record.events = [];
     if (editingEventId) {
         const idx = record.events.findIndex(e => e.id === editingEventId);
         if (idx !== -1) {
             record.events[idx] = { ...record.events[idx], event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼', remark, photos, image: photos[0] || record.events[idx].image };
         }
-        alert('修改成功！');
+        showToast('修改成功！');
         editingEventId = null;
     } else {
         record.events.push({ id: Date.now(), event, amount: parseFloat(amount), date, location, type: selectedGiftType || '随礼', remark, photos, image: photos[0] || '' });
-        alert('事件添加成功！');
+        showToast('事件添加成功！');
     }
 
     localStorage.setItem('myGiftRecords', JSON.stringify(records));
     // 重置
+    editingEventId = null;
+    selectedGiftType = '随礼';
     eventPhotos = ['', '', ''];
+    ['event-name','event-amount','event-date','event-location','event-remark'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.querySelectorAll('#page-add-event .chip').forEach(c => c.classList.remove('active'));
     for (let i = 0; i < 3; i++) {
         const inp = document.getElementById('event-image-' + i);
         if (inp) inp.value = '';
@@ -1551,6 +1787,31 @@ function saveGiftEvent() {
     }
     renderGiftEventList();
     switchPage('page-gift-detail');
+}
+
+function deleteGiftEvent() {
+    if (!currentEventId || !currentGiftPersonId) return;
+    if (!confirm('确定删除这条事件吗？')) return;
+    let records = getGiftRecords();
+    const record = records.find(r => r.id === currentGiftPersonId);
+    if (!record) return;
+    record.events = (record.events || []).filter(e => e.id !== currentEventId);
+    // 如果这个人已经没有任何事件，顺带把这个人也删掉
+    if (record.events.length === 0) {
+        records = records.filter(r => r.id !== currentGiftPersonId);
+    }
+    localStorage.setItem('myGiftRecords', JSON.stringify(records));
+    currentEventId = null;
+    showToast('已删除');
+    if (records.find(r => r.id === currentGiftPersonId)) {
+        // 这个人还有别的事件，回到随礼详情
+        renderGiftEventList();
+        switchPage('page-gift-detail');
+    } else {
+        // 这个人没事件了，回到列表
+        currentGiftPersonId = null;
+        switchPage('page-gift-record');
+    }
 }
 
 // ================= 重要日期 =================
@@ -1565,15 +1826,15 @@ function saveImportantDate() {
     const person = document.getElementById('important-person').value.trim();
     const date = document.getElementById('important-date').value;
     const event = document.getElementById('important-event').value.trim();
-    if (!date || !event) { alert('请填写日期和事件！'); return; }
+    if (!date || !event) { showToast('请填写日期和事件！', 'error'); return; }
     let dates = getImportantDates();
     if (editingImportantId) {
         const idx = dates.findIndex(d => d.id === editingImportantId);
         if (idx !== -1) dates[idx] = { ...dates[idx], person, date, event, level: selectedImportantLevel };
-        alert('修改成功！');
+        showToast('修改成功！');
     } else {
         dates.push({ id: Date.now(), person, date, event, level: selectedImportantLevel });
-        alert('保存成功！');
+        showToast('保存成功！');
     }
     localStorage.setItem('myImportantDates', JSON.stringify(dates));
     editingImportantId = null;
@@ -1613,6 +1874,16 @@ function editImportantDate() {
     switchPage('page-add-important');
 }
 
+function deleteImportantDate() {
+    if (!currentImportantDetailId) return;
+    if (!confirm('确定删除这个日期吗？')) return;
+    let dates = getImportantDates().filter(d => d.id !== currentImportantDetailId);
+    localStorage.setItem('myImportantDates', JSON.stringify(dates));
+    currentImportantDetailId = null;
+    showToast('已删除');
+    switchPage('page-important-dates');
+}
+
 function renderUpcomingDates() {
     const section = document.getElementById('upcoming-dates-section');
     if (!section) return;
@@ -1635,6 +1906,18 @@ function renderUpcomingDates() {
     });
     html += '</div>';
     section.innerHTML = html;
+}
+
+function openCalendarPicker() {
+    // 打开日期选择器的「只选年月」模式
+    currentInputId = null;
+    pickerMode = 'year-month';
+    pickerStep = 'year';
+    selectedYear = null;
+    selectedMonth = null;
+    selectedDay = null;
+    document.getElementById('date-picker-modal').style.display = 'flex';
+    renderPickerBody();
 }
 
 // ========== 日历渲染 ==========
@@ -1678,7 +1961,12 @@ function renderCalendar() {
             else if (ev.level === '纪念') bgColor = '#c96a5a';
             eventsHtml += `<div class="cal-event-rect" style="background:${bgColor}">${ev.event}</div>`;
         });
-                html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
+
+        // 判断今天
+        const now = new Date();
+        const isToday = (calYear === now.getFullYear() && calMonth === (now.getMonth() + 1) && d === now.getDate());
+
+        html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''} ${isToday ? 'is-today' : ''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
             <span class="cal-day">${d}</span>
             ${jieQiText ? `<span class="cal-holiday">${jieQiText}</span>` : (lunarText ? `<span class="cal-lunar">${lunarText}</span>` : '')}
             ${holiday ? `<span class="cal-holiday">${holiday}</span>` : ''}
@@ -1693,7 +1981,8 @@ function renderCalendar() {
         const dateStr = cell.dataset.date;
         if (!dateStr) return;
         let fired = false;
-        const startPress = () => {
+        const startPress = (e) => {
+            if (e && e.cancelable) e.preventDefault();
             fired = false;
             longPressTimer = setTimeout(() => {
                 fired = true;
@@ -1704,7 +1993,7 @@ function renderCalendar() {
         };
         const cancelPress = () => clearTimeout(longPressTimer);
 
-        cell.addEventListener('touchstart', startPress, { passive: true });
+        cell.addEventListener('touchstart', startPress, { passive: false });
         cell.addEventListener('touchend', cancelPress);
         cell.addEventListener('touchmove', cancelPress);
         cell.addEventListener('touchcancel', cancelPress);
@@ -1714,7 +2003,68 @@ function renderCalendar() {
     });
 }
 
+// ================= 接下来 7 天 =================
+function renderUpcoming7Days() {
+    const list = document.getElementById('upcoming-7days-list');
+    if (!list) return;
+
+    const dates = getImportantDates();
+    const diaries = getDiaries();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+    let html = '';
+
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        // 标记
+        let label = '';
+        let cls = '';
+        if (i === 0) { label = '今天'; cls = 'is-today'; }
+        else if (i === 1) { label = '明天'; }
+        else if (i === 2) { label = '后天'; }
+        else { label = '周' + weekdayNames[d.getDay()]; }
+
+        // 当天的事件
+        const dayEvents = dates.filter(x => x.date === dateStr);
+        const dayDiaries = diaries.filter(x => x.date === dateStr);
+
+        let contentHtml = '';
+        if (dayEvents.length === 0 && dayDiaries.length === 0) {
+            contentHtml = '<span class="day-empty">暂无</span>';
+        } else {
+            dayEvents.forEach(ev => {
+                let dotColor = '#f9d5cf';
+                if (ev.level === '重要') dotColor = '#e8a49b';
+                else if (ev.level === '纪念') dotColor = '#c96a5a';
+                const personPrefix = ev.person ? `[${ev.person}] ` : '';
+                contentHtml += `<div class="day-event-line"><span class="day-dot" style="background:${dotColor};"></span><span>${personPrefix}${ev.event}</span></div>`;
+            });
+            if (dayDiaries.length > 0) {
+                contentHtml += `<div class="day-event-line"><span class="day-diary-icon">📔</span><span>日记 ${dayDiaries.length} 篇</span></div>`;
+            }
+        }
+
+        html += `
+            <div class="day-row ${cls}">
+                <div class="day-badge">
+                    <div class="day-badge-label">${label}</div>
+                    <div class="day-badge-date">${d.getMonth() + 1}/${d.getDate()}</div>
+                </div>
+                <div class="day-content">${contentHtml}</div>
+            </div>
+        `;
+    }
+    list.innerHTML = html;
+}
+
 function selectCalDay(dateStr) {
+    const sel = window.getSelection && window.getSelection();
+    if (sel) sel.removeAllRanges();
     if (isLongPress) { isLongPress = false; return; }
     const detail = document.getElementById('important-detail-card');
     const dates = getImportantDates().filter(d => d.date === dateStr);
@@ -1754,6 +2104,43 @@ function selectCalDay(dateStr) {
     }
     detail.innerHTML = html;
     detail.style.display = 'block';
+        // 给详情卡片加长按删除
+    detail.querySelectorAll('.important-card').forEach(card => {
+        const onclickAttr = card.getAttribute('onclick') || '';
+        const m = onclickAttr.match(/showImportantDetail\((\d+)\)/);
+        if (!m) return;
+        const id = parseInt(m[1]);
+        bindLongPress(card, () => {
+            const item = getImportantDates().find(d => d.id === id);
+            if (!item) return;
+            showConfirm('删除重要日期', `确定删除「${item.event}」吗？`, () => {
+                let dates = getImportantDates().filter(d => d.id !== id);
+                localStorage.setItem('myImportantDates', JSON.stringify(dates));
+                showToast('已删除');
+                detail.style.display = 'none';
+                renderCalendar();
+                renderUpcomingDates();
+                renderUpcoming7Days();
+            });
+        });
+    });
+        // 给日记卡片加长按删除
+    detail.querySelectorAll('.diary-card').forEach(card => {
+        const onclickAttr = card.getAttribute('onclick') || '';
+        const m = onclickAttr.match(/editDiary\((\d+)\)/);
+        if (!m) return;
+        const id = parseInt(m[1]);
+        bindLongPress(card, () => {
+            const d = getDiaries().find(x => x.id === id);
+            if (!d) return;
+            showConfirm('删除日记', `确定删除这条${d.type}吗？`, () => {
+                let diaries = getDiaries().filter(x => x.id !== id);
+                saveDiaries(diaries);
+                showToast('已删除');
+                selectCalDay(dateStr);
+            });
+        });
+    });
 }
 
 function backToCalendar() {
@@ -1772,7 +2159,22 @@ function toggleImportantSearch() {
 }
 function toggleImportantMenu() {
     const m = document.getElementById('important-menu');
-    m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    const o = document.getElementById('important-menu-overlay');
+    const isOpen = m.style.display !== 'none';
+    if (isOpen) {
+        m.style.display = 'none';
+        if (o) o.style.display = 'none';
+    } else {
+        m.style.display = 'block';
+        if (o) o.style.display = 'block';
+    }
+}
+
+function closeImportantMenu() {
+    const m = document.getElementById('important-menu');
+    const o = document.getElementById('important-menu-overlay');
+    if (m) m.style.display = 'none';
+    if (o) o.style.display = 'none';
 }
 function setImportantFilter(f) { importantFilter = f; updateImportantMenuButtons(); showImportantListView(); }
 function setImportantTransition(t) { importantTransition = t; updateImportantMenuButtons(); showImportantListView(); }
@@ -1810,13 +2212,26 @@ function renderImportantList() {
         div.className = `important-card level-${d.level}`;
         div.setAttribute('onclick', `showImportantDetail(${d.id})`);
         div.innerHTML = `<div class="important-card-header"><span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${d.event}</span><span class="important-card-level">${d.level}</span></div><div class="important-card-date">${d.date} · ${dayText}</div>`;
+        // 长按删除
+        bindLongPress(div, () => {
+            showConfirm('删除重要日期', `确定删除「${d.event}」吗？`, () => {
+                let dates = getImportantDates().filter(x => x.id !== d.id);
+                localStorage.setItem('myImportantDates', JSON.stringify(dates));
+                showToast('已删除');
+                renderImportantList();
+                renderCalendar();
+                renderUpcomingDates();
+            });
+        });
+
         container.appendChild(div);
     });
 }
 
 // ================= 日期选择器 =================
-function openDatePicker(inputId) {
+function openDatePicker(inputId, mode) {
     currentInputId = inputId;
+    pickerMode = mode || 'full';
     pickerStep = 'year';
     selectedYear = null; selectedMonth = null; selectedDay = null;
     document.getElementById('date-picker-modal').style.display = 'flex';
@@ -1839,7 +2254,21 @@ function renderPickerBody() {
         title.innerText = selectedYear + '年 2. 选择月份';
         for (let i = 1; i <= 12; i++) {
             const d = document.createElement('div'); d.className = 'picker-item'; d.innerText = i + '月';
-            d.onclick = () => { selectedMonth = i; pickerStep = 'day'; renderPickerBody(); }; body.appendChild(d);
+            d.onclick = () => {
+                selectedMonth = i;
+                if (pickerMode === 'year-month') {
+                    // 只选年月模式：选完月直接应用并关闭
+                    calYear = selectedYear;
+                    calMonth = selectedMonth;
+                    document.getElementById('important-detail-card').style.display = 'none';
+                    renderCalendar();
+                    closeDatePicker();
+                } else {
+                    pickerStep = 'day';
+                    renderPickerBody();
+                }
+            };
+            body.appendChild(d);
         }
     } else if (pickerStep === 'day') {
         title.innerText = selectedYear + '年' + selectedMonth + '月 3. 选择日期';
@@ -1869,8 +2298,19 @@ function getBooks() {
 function saveBook(book) {
     let books = getBooks();
     const idx = books.findIndex(b => b.id === book.id);
-    if (idx !== -1) books[idx] = book;
-    else books.push(book);
+    book.updatedAt = Date.now();
+    if (book.isActive === undefined) book.isActive = false;
+    if (idx !== -1) {
+        // 保留原有 isActive 状态
+        book.isActive = books[idx].isActive || false;
+        books[idx] = book;
+    } else {
+        books.push(book);
+    }
+    // 确保只有一本 isActive
+    if (book.isActive) {
+        books.forEach(b => { if (b.id !== book.id) b.isActive = false; });
+    }
     localStorage.setItem('myBooks', JSON.stringify(books));
     renderBookProgress();
 }
@@ -1880,30 +2320,40 @@ function renderBookProgress() {
     if (!container) return;
 
     const books = getBooks();
+    const activeBook = books.find(b => b.isActive);
+
     if (books.length === 0) {
         container.innerHTML = `
-            <div class="card" onclick="showBookDetail()" style="cursor:pointer;">
+            <div class="card" onclick="switchPage('page-book-list')" style="cursor:pointer;">
                 <h3 style="margin-bottom:10px;">今天看书了嘛~ 📖</h3>
                 <p style="color:#999; font-size:14px;">点击添加一本正在读的书</p>
             </div>`;
         return;
     }
 
-    // 默认显示最新一本
-    const book = books[books.length - 1];
-    const total = book.totalPages || 1;
-    const current = book.currentPages || 0;
+    if (!activeBook) {
+        container.innerHTML = `
+            <div class="card" onclick="switchPage('page-book-list')" style="cursor:pointer;">
+                <h3 style="margin-bottom:10px;">今天看书了嘛~ 📖</h3>
+                <p style="color:#999; font-size:14px;">还没有选择要展示的书，去书本列表勾选</p>
+            </div>`;
+        return;
+    }
+
+    const total = activeBook.totalPages || 1;
+    const current = activeBook.currentPages || 0;
     const percent = Math.min(100, Math.round((current / total) * 100));
-    const estimated = parseFloat(book.estimatedHours) || 0;
-    const spent = parseFloat(book.spentHours) || 0;
-    const remaining = Math.max(0, estimated - spent).toFixed(1);
+    const estimated = parseFloat(activeBook.estimatedHours) || 0;
+    const isDone = percent >= 100;
+    const spent = isDone ? (activeBook.spentHours || 0) : computeSpentDaysValue(activeBook.startDate);
+    const remaining = isDone ? 0 : Math.max(0, estimated - spent).toFixed(1);
 
     container.innerHTML = `
-        <div class="card" onclick="showBookDetail(${book.id})" style="cursor:pointer;">
+        <div class="card" onclick="showBookView(${activeBook.id})" style="cursor:pointer;">
             <h3 style="margin-bottom:10px;">今天看书了嘛~ 📖</h3>
             <div style="display:flex; justify-content:space-between; font-size:13px; color:#666; margin-bottom:6px;">
-                <span>${book.name}</span>
-                <span>已用 ${spent} 天 / 计划剩余 ${remaining} 天</span>
+                <span>${activeBook.name}</span>
+                <span>已用 ${spent} 天 ${isDone ? '（已读完）' : '/ 计划剩余 ' + remaining + ' 天'}</span>
             </div>
             <div class="progress-bar-bg">
                 <div class="progress-bar-fill" style="width:${percent}%"></div>
@@ -1913,42 +2363,315 @@ function renderBookProgress() {
         </div>`;
 }
 
+// 纯计算函数（不影响 DOM）
+function computeSpentDaysValue(startDate) {
+    if (!startDate) return 0;
+    const start = new Date(startDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    start.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.round((today - start) / (1000 * 60 * 60 * 24)));
+}
+
 function showBookDetail(id) {
     const books = getBooks();
     let book = null;
     if (id) book = books.find(b => b.id === id);
     if (!book) {
-        // 新建
-        book = { id: Date.now(), name: '', startDate: '', totalPages: 0, currentPages: 0, estimatedHours: 0, spentHours: 0 };
+        book = { id: Date.now(), name: '', startDate: '', totalPages: 0, currentPages: 0, estimatedHours: 0, spentHours: 0, isActive: false };
     }
-    // 填充到表单（需要新增一个页面或弹窗）
     document.getElementById('book-name').value = book.name || '';
     document.getElementById('book-start-date').value = book.startDate || '';
     document.getElementById('book-total-pages').value = book.totalPages || '';
     document.getElementById('book-current-pages').value = book.currentPages || '';
     document.getElementById('book-estimated-hours').value = book.estimatedHours || '';
-    document.getElementById('book-spent-hours').value = book.spentHours || '';
-    // 存储当前编辑的 ID
+
+    const titleEl = document.getElementById('book-edit-title');
+    if (titleEl) titleEl.textContent = id ? '编辑书本' : '添加书本';
+
+    computeSpentDays(book.startDate);
     document.getElementById('book-detail').dataset.bookId = book.id;
     switchPage('page-book-detail');
 }
 
+function computeSpentDays(startDate) {
+    const el = document.getElementById('book-spent-hours');
+    if (!el) return;
+    if (!startDate) { el.value = ''; return; }
+    const days = computeSpentDaysValue(startDate);
+    el.value = days + ' 天';
+    computedSpentDays = days;
+}
+
 function saveBookDetail() {
     const id = parseInt(document.getElementById('book-detail').dataset.bookId);
+    const startDate = document.getElementById('book-start-date').value;
+    if (!startDate) { showToast('请选择开始阅读时间', 'error'); return; }
+
+    let books = getBooks();
+    const existing = books.find(b => b.id === id);
+    const totalPages = parseInt(document.getElementById('book-total-pages').value) || 0;
+    const currentPages = parseInt(document.getElementById('book-current-pages').value) || 0;
+    const isDone = totalPages > 0 && currentPages >= totalPages;
+
     const book = {
         id: id || Date.now(),
         name: document.getElementById('book-name').value.trim(),
-        startDate: document.getElementById('book-start-date').value,
-        totalPages: parseInt(document.getElementById('book-total-pages').value) || 0,
-        currentPages: parseInt(document.getElementById('book-current-pages').value) || 0,
+        startDate: startDate,
+        totalPages: totalPages,
+        currentPages: currentPages,
         estimatedHours: parseFloat(document.getElementById('book-estimated-hours').value) || 0,
-        spentHours: parseFloat(document.getElementById('book-spent-hours').value) || 0
+        // 读完时冻结用时；未读完时用实时计算的
+        spentHours: (isDone && existing) ? (existing.spentHours || computeSpentDaysValue(startDate)) : computeSpentDaysValue(startDate),
+        isActive: existing ? existing.isActive : false
     };
-    if (!book.name) { alert('请填写书名'); return; }
+    if (!book.name) { showToast('请填写书名', 'error'); return; }
     saveBook(book);
-    alert('保存成功！');
-    switchPage('page-home');
+    showToast('保存成功！');
+
+    // 回到只读详情页
+    currentBookViewId = book.id;
+    showBookView(book.id);
 }
+
+function cancelBookEdit() {
+    const id = parseInt(document.getElementById('book-detail').dataset.bookId);
+    if (id) {
+        showBookView(id);
+    } else {
+        switchPage('page-book-list');
+    }
+}
+
+// ================= 书本列表页 =================
+function toggleBookSearchBar() {
+    const w = document.getElementById('book-search-bar-wrapper');
+    w.style.display = w.style.display === 'none' ? 'block' : 'none';
+    if (w.style.display === 'block') document.getElementById('book-search-input').focus();
+}
+
+function setBookFilterStatus(v) { bookFilterStatus = v; renderBookList(); }
+function setBookSort(v) { bookSort = v; renderBookList(); }
+
+function toggleBookSortDir() {
+    bookSortDir = bookSortDir === 'desc' ? 'asc' : 'desc';
+    const btn = document.getElementById('book-sort-dir-btn');
+    if (bookSortDir === 'desc') {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
+    } else {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+    }
+    renderBookList();
+}
+
+function toggleBookViewMode() {
+    bookView = bookView === 'list' ? 'tile' : 'list';
+    const btn = document.getElementById('book-view-toggle-btn');
+    if (bookView === 'list') {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+    } else {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>';
+    }
+    renderBookList();
+}
+
+function renderBookList() {
+    let books = getBooks();
+    const container = document.getElementById('book-list');
+    if (!container) return;
+
+    // 搜索
+    const kw = (document.getElementById('book-search-input')?.value || '').toLowerCase().trim();
+    if (kw) books = books.filter(b => (b.name || '').toLowerCase().includes(kw));
+
+    // 状态筛选
+    if (bookFilterStatus === 'reading') {
+        books = books.filter(b => {
+            const total = b.totalPages || 0;
+            const cur = b.currentPages || 0;
+            return !(total > 0 && cur >= total);
+        });
+    } else if (bookFilterStatus === 'done') {
+        books = books.filter(b => {
+            const total = b.totalPages || 0;
+            const cur = b.currentPages || 0;
+            return total > 0 && cur >= total;
+        });
+    }
+
+    // 排序
+    books.sort((a, b) => {
+        let r = 0;
+        if (bookSort === 'name') {
+            r = (a.name || '').localeCompare(b.name || '');
+        } else if (bookSort === 'progress') {
+            const pa = (a.totalPages ? (a.currentPages || 0) / a.totalPages : 0);
+            const pb = (b.totalPages ? (b.currentPages || 0) / b.totalPages : 0);
+            r = pb - pa;
+        } else {
+            r = (b.updatedAt || b.id || 0) - (a.updatedAt || a.id || 0);
+        }
+        return bookSortDir === 'asc' ? -r : r;
+    });
+
+    container.className = bookView === 'tile' ? 'items-list-tile' : 'items-list-list';
+
+    if (books.length === 0) {
+        container.innerHTML = '<p style="color:#999;text-align:center;margin-top:50px;">还没有添加书本，点右下角 + 添加</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+    books.forEach(book => {
+        const total = book.totalPages || 0;
+        const cur = book.currentPages || 0;
+        const percent = total > 0 ? Math.min(100, Math.round((cur / total) * 100)) : 0;
+        const isDone = percent >= 100 && total > 0;
+        const spent = computeSpentDaysValue(book.startDate);
+
+        const div = document.createElement('div');
+        div.className = bookView === 'tile' ? 'item-tile' : 'item-card-new';
+        div.style.position = 'relative';
+
+        // 勾选方块
+        const checkBox = `<div class="book-check ${book.isActive ? 'checked' : ''}" onclick="toggleBookActive(${book.id}, event)">
+            ${book.isActive ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+        </div>`;
+
+        if (bookView === 'tile') {
+            div.innerHTML = `
+                ${checkBox}
+                <div class="book-cover-tile">📖</div>
+                <div class="tile-name">${book.name}</div>
+                <div class="tile-tags">
+                    <span class="mini-tag" style="background:#f5ede3;color:#8B6F47;">${percent}%</span>
+                    <span class="mini-tag" style="background:#f0f0f0;color:#666;">${isDone ? '已读完' : '已用 ' + spent + ' 天'}</span>
+                </div>
+            `;
+        } else {
+            div.innerHTML = `
+                <div class="book-cover">📖</div>
+                <div class="item-info-new">
+                    <div class="item-name-new">${book.name}</div>
+                    <div class="item-tag-row">
+                        <span class="mini-tag" style="background:#f5ede3;color:#8B6F47;">进度 ${percent}%</span>
+                        <span class="mini-tag" style="background:#f0f0f0;color:#666;">${isDone ? '已读完' : '已用 ' + spent + ' 天'}</span>
+                        <span class="mini-tag" style="background:#faf6f0;color:#6b5740;">${cur}/${total} 页</span>
+                    </div>
+                </div>
+                ${checkBox}
+            `;
+        }
+
+        // 点击卡片本身（除勾选外）→ 进只读详情
+        div.setAttribute('onclick', `showBookView(${book.id})`);
+                // 长按删除
+        bindLongPress(div, () => {
+            showConfirm('删除书本', `确定删除「${book.name}」吗？`, () => {
+                let books = getBooks().filter(b => b.id !== book.id);
+                localStorage.setItem('myBooks', JSON.stringify(books));
+                showToast('已删除');
+                renderBookList();
+                renderBookProgress();
+            });
+        });
+
+        container.appendChild(div);
+        container.appendChild(div);
+    });
+}
+
+// 切换勾选（只能选一本）
+function toggleBookActive(id, event) {
+    if (event) event.stopPropagation();
+    let books = getBooks();
+    const book = books.find(b => b.id === id);
+    if (!book) return;
+    const newActive = !book.isActive;
+    books.forEach(b => b.isActive = false);
+    book.isActive = newActive;
+    localStorage.setItem('myBooks', JSON.stringify(books));
+    renderBookList();
+    renderBookProgress();
+}
+
+// ================= 书本只读详情页 =================
+function showBookView(id) {
+    const book = getBooks().find(b => b.id === id);
+    if (!book) return;
+    currentBookViewId = id;
+
+    const total = book.totalPages || 0;
+    const cur = book.currentPages || 0;
+    const percent = total > 0 ? Math.min(100, Math.round((cur / total) * 100)) : 0;
+    const isDone = percent >= 100 && total > 0;
+    const spent = isDone ? (book.spentHours || 0) : computeSpentDaysValue(book.startDate);
+
+    const radius = 46;
+    const circumference = 2 * Math.PI * radius;
+    const dash = (percent / 100) * circumference;
+
+    const content = document.getElementById('book-view-content');
+    content.innerHTML = `
+        <div class="book-view-top-grid">
+            <div class="book-hero-card">
+                <div class="book-hero-cover">📖</div>
+                <div class="book-hero-title">${book.name}</div>
+                <div class="book-hero-sub">${isDone ? '已读完' : '阅读中'}</div>
+            </div>
+            <div class="book-ring-card">
+                <svg class="book-progress-ring" width="120" height="120" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="${radius}" stroke="var(--divider)" stroke-width="10" fill="none"/>
+                    <circle cx="60" cy="60" r="${radius}" stroke="#8B6F47" stroke-width="10" fill="none"
+                        stroke-linecap="round"
+                        stroke-dasharray="${circumference}"
+                        stroke-dashoffset="${circumference - dash}"
+                        transform="rotate(-90 60 60)"/>
+                </svg>
+                <div class="book-progress-text">
+                    <div class="book-progress-percent">${percent}%</div>
+                    <div class="book-progress-pages">${cur}/${total}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card book-view-card">
+            <div class="book-view-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+                <span>时间信息</span>
+            </div>
+            <div class="book-view-row"><span>开始阅读</span><span>${book.startDate || '未记录'}</span></div>
+            <div class="book-view-row"><span>预计用时</span><span>${book.estimatedHours || 0} 天</span></div>
+            <div class="book-view-row"><span>已用时</span><span>${spent} 天</span></div>
+        </div>
+
+        <div class="card book-view-card">
+            <div class="book-view-section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="14"/></svg>
+                <span>阅读进度</span>
+            </div>
+            <div class="book-view-row"><span>总页数</span><span>${book.totalPages || 0} 页</span></div>
+            <div class="book-view-row"><span>目前页数</span><span>${book.currentPages || 0} 页</span></div>
+            <div class="book-view-row"><span>状态</span><span>${isDone ? '已读完' : '阅读中'}</span></div>
+        </div>
+    `;
+    switchPage('page-book-view');
+}
+
+function editBookFromView() {
+    if (currentBookViewId) showBookDetail(currentBookViewId);
+}
+
+function deleteBook() {
+    if (!currentBookViewId) return;
+    if (!confirm('确定删除这本书吗？')) return;
+    let books = getBooks().filter(b => b.id !== currentBookViewId);
+    localStorage.setItem('myBooks', JSON.stringify(books));
+    currentBookViewId = null;
+    showToast('已删除');
+    switchPage('page-book-list');
+}
+
 // ================= 图形锁 =================
 function openPatternLock() {
     const l = getLockSettings();
@@ -2100,12 +2823,13 @@ function finishPattern() {
                 const l = getLockSettings();
                 l.type = 'pattern';
                 l.pattern = patternStr;
+                l.password = '';
                 localStorage.setItem('myLock', JSON.stringify(l));
                 loadLockSettings();
                 document.getElementById('pattern-hint').innerText = '✅ 图形锁设置成功！';
                 setTimeout(() => {
                     closePatternLock();
-                    alert('图形锁设置成功！');
+                    showToast('图形锁设置成功！');
                 }, 600);
             } else {
                 document.getElementById('pattern-hint').innerText = '❌ 两次不一致，请重新绘制';
@@ -2114,6 +2838,81 @@ function finishPattern() {
             }
         }
     }
+}
+
+// ================= Toast 提示 =================
+// ================= 全局确认弹窗 =================
+function showConfirm(title, message, onOk) {
+    confirmCallback = onOk;
+    document.getElementById('confirm-title').textContent = title || '确认删除';
+    document.getElementById('confirm-message').textContent = message || '确定要删除吗？';
+    document.getElementById('confirm-modal').style.display = 'flex';
+}
+// ================= 通用长按绑定 =================
+// 用法：bindLongPress(element, () => { 删除逻辑 })
+// 短按仍会触发原 click，长按则阻止 click
+function bindLongPress(el, callback) {
+    let timer = null;
+    let fired = false;
+
+    const start = (e) => {
+        fired = false;
+        timer = setTimeout(() => {
+            fired = true;
+            itemLongPressFired = true;
+            if (navigator.vibrate) navigator.vibrate(30);
+            callback();
+        }, 1000);
+    };
+    const cancel = () => {
+        clearTimeout(timer);
+        timer = null;
+    };
+
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchend', cancel);
+    el.addEventListener('touchmove', cancel);
+    el.addEventListener('touchcancel', cancel);
+    el.addEventListener('mousedown', start);
+    el.addEventListener('mouseup', cancel);
+    el.addEventListener('mouseleave', cancel);
+
+    // 长按触发后，阻止紧随的 click
+    el.addEventListener('click', (e) => {
+        if (fired) {
+            e.stopPropagation();
+            e.preventDefault();
+            fired = false;
+        }
+    }, true);
+}
+function closeConfirm() {
+    confirmCallback = null;
+    document.getElementById('confirm-modal').style.display = 'none';
+}
+function confirmOk() {
+    const cb = confirmCallback;
+    closeConfirm();
+    if (typeof cb === 'function') cb();
+}
+
+function showToast(msg, type) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    const t = document.createElement('div');
+    t.className = 'toast ' + (type || 'success');
+    t.textContent = msg;
+    container.appendChild(t);
+    // 强制重绘，触发动画
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => {
+        t.classList.remove('show');
+        setTimeout(() => t.remove(), 300);
+    }, 2000);
 }
 
 // ================= 初始化 =================
@@ -2127,13 +2926,64 @@ window.addEventListener('load', () => {
     refreshDrawerInfo();
     applyCustomIcons();
     renderBookProgress();
+    renderBookList();
     renderCategoryGrid();
     renderAcquireGrid();
     for (let i = 0; i < 3; i++) { renderGiftPhotoSlot(i); renderEventPhotoSlot(i); }
-        // 所有返回箭头 ← 换成 <
+        // 所有返回箭头 ← 换成 SVG
     document.querySelectorAll('.back-arrow').forEach(el => {
-        if (el.textContent.trim() === '←') el.textContent = '<';
+        if (el.textContent.trim() === '←' || el.textContent.trim() === '<') {
+            el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+        }
     });
+        // 禁止日历长按选中文字
+    document.querySelectorAll('.calendar-grid').forEach(el => {
+        el.style.userSelect = 'none';
+        el.style.webkitUserSelect = 'none';
+        el.style.webkitTouchCallout = 'none';
+    });
+});
+
+// ================= 全局：点击外部收起弹窗 =================
+document.addEventListener('click', function(e) {
+    // 1. 全部物品的搜索栏
+    const searchWrapper = document.getElementById('search-bar-wrapper');
+    const searchIcon = document.querySelector('#page-all-items h3 + span') ||
+                       document.querySelector('#page-all-items .page-main-title ~ span');
+    if (searchWrapper && searchWrapper.style.display === 'block') {
+        const inWrapper = searchWrapper.contains(e.target);
+        const inIcon = searchIcon && searchIcon.contains(e.target);
+        // 也检查一下这个点击是否来自 toggleSearchBar 的 onclick（图标可能没有被 querySelector 精确匹配）
+        const isToggleClick = e.target.closest && e.target.closest('[onclick*="toggleSearchBar"]');
+        if (!inWrapper && !inIcon && !isToggleClick) {
+            searchWrapper.style.display = 'none';
+        }
+    }
+
+    // 2. 重要日期的搜索栏
+    const impSearchBar = document.getElementById('important-search-bar');
+    if (impSearchBar && impSearchBar.style.display === 'block') {
+        const inBar = impSearchBar.contains(e.target);
+        const isToggleClick = e.target.closest && e.target.closest('[onclick*="toggleImportantSearch"]');
+        if (!inBar && !isToggleClick) {
+            impSearchBar.style.display = 'none';
+            // 同步清空关键词
+            if (typeof importantSearchKeyword !== 'undefined') importantSearchKeyword = '';
+            const inp = document.getElementById('important-search-input');
+            if (inp) inp.value = '';
+            if (typeof renderCalendar === 'function') renderCalendar();
+        }
+    }
+
+    // 3. 重要日期的 ⋯ 菜单
+    const impMenu = document.getElementById('important-menu');
+    if (impMenu && impMenu.style.display === 'block') {
+        const inMenu = impMenu.contains(e.target);
+        const isToggleClick = e.target.closest && e.target.closest('[onclick*="toggleImportantMenu"]');
+        if (!inMenu && !isToggleClick) {
+            if (typeof closeImportantMenu === 'function') closeImportantMenu();
+        }
+    }
 });
 
 // ================= 日记/便签 =================
@@ -2204,6 +3054,17 @@ function renderDiaryPanel(dateStr) {
             ${d.title ? `<div class="diary-card-title">${d.title}</div>` : ''}
             <div class="diary-card-content">${(d.content || '').replace(/</g,'&lt;')}</div>
         `;
+                // 长按删除
+        bindLongPress(card, () => {
+            showConfirm('删除日记', `确定删除这条${d.type}吗？`, () => {
+                let diaries = getDiaries().filter(x => x.id !== d.id);
+                saveDiaries(diaries);
+                showToast('已删除');
+                renderDiaryPanel(dateStr);
+            });
+        });
+
+        body.appendChild(card);
         body.appendChild(card);
     });
 }
@@ -2272,16 +3133,16 @@ function editDiary(id) {
 }
 
 function saveDiary() {
-    if (!diaryPanelDate) { alert('日期错误'); return; }
+    if (!diaryPanelDate) { showToast('日期错误', 'error'); return; }
     const title = document.getElementById('diary-title-input').value.trim();
     const content = document.getElementById('diary-content-input').value;
-    if (!title && !content.trim()) { alert('内容不能为空'); return; }
+    if (!title && !content.trim()) { showToast('内容不能为空', 'error'); return; }
 
     let diaries = getDiaries();
     if (editingDiaryId) {
         const idx = diaries.findIndex(d => d.id === editingDiaryId);
         if (idx !== -1) diaries[idx] = { ...diaries[idx], title, content };
-        alert('修改成功！');
+        showToast('修改成功！');
     } else {
         diaries.push({
             id: Date.now(),
@@ -2291,7 +3152,7 @@ function saveDiary() {
             content,
             createdAt: Date.now()
         });
-        alert('保存成功！');
+        showToast('保存成功！');
     }
     saveDiaries(diaries);
     editingDiaryId = null;

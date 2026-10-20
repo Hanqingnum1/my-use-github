@@ -211,11 +211,13 @@ function uploadAvatar(input) {
 function editField(field) {
     const p = getProfile();
     if (field === 'nickname') {
-        const v = prompt('请输入昵称：', p.nickname || '');
-        if (v !== null) { p.nickname = v.trim(); saveProfile(p); loadProfile(); }
+        showPrompt('修改昵称', p.nickname || '', (v) => {
+            p.nickname = v.trim(); saveProfile(p); loadProfile();
+        });
     } else {
-        const v = prompt('请输入个性签名：', p.sign || '');
-        if (v !== null) { p.sign = v.trim(); saveProfile(p); loadProfile(); }
+        showPrompt('修改个性签名', p.sign || '', (v) => {
+            p.sign = v.trim(); saveProfile(p); loadProfile();
+        });
     }
 }
 
@@ -562,17 +564,19 @@ function importData(input) {
     reader.onload = (e) => {
         try {
             const data = JSON.parse(e.target.result);
-            if (confirm('导入会覆盖当前数据，是否继续？')) {
-                if (data.items) localStorage.setItem('myItems', JSON.stringify(data.items));
-                if (data.giftRecords) localStorage.setItem('myGiftRecords', JSON.stringify(data.giftRecords));
-                if (data.importantDates) localStorage.setItem('myImportantDates', JSON.stringify(data.importantDates));
-                if (data.diaries) localStorage.setItem('myDiaries', JSON.stringify(data.diaries));
-                if (data.books) localStorage.setItem('myBooks', JSON.stringify(data.books));
-                if (data.customIcons) localStorage.setItem('myCustomIcons', JSON.stringify(data.customIcons));
-                if (data.lock) localStorage.setItem('myLock', JSON.stringify(data.lock));
-                if (data.profile) localStorage.setItem('myProfile', JSON.stringify(data.profile));
-                if (data.theme) localStorage.setItem('myTheme', JSON.stringify(data.theme));
-                showToast('导入成功！'); location.reload();
+            if (data) {
+                showAlert('导入数据', '导入会覆盖当前数据，是否继续？', () => {
+                    if (data.items) localStorage.setItem('myItems', JSON.stringify(data.items));
+                    if (data.giftRecords) localStorage.setItem('myGiftRecords', JSON.stringify(data.giftRecords));
+                    if (data.importantDates) localStorage.setItem('myImportantDates', JSON.stringify(data.importantDates));
+                    if (data.diaries) localStorage.setItem('myDiaries', JSON.stringify(data.diaries));
+                    if (data.books) localStorage.setItem('myBooks', JSON.stringify(data.books));
+                    if (data.customIcons) localStorage.setItem('myCustomIcons', JSON.stringify(data.customIcons));
+                    if (data.lock) localStorage.setItem('myLock', JSON.stringify(data.lock));
+                    if (data.profile) localStorage.setItem('myProfile', JSON.stringify(data.profile));
+                    if (data.theme) localStorage.setItem('myTheme', JSON.stringify(data.theme));
+                    showToast('导入成功！'); location.reload();
+                });
             }
         } catch (err) { showToast('文件格式错误！', 'error'); }
     };
@@ -580,11 +584,11 @@ function importData(input) {
 }
 
 function clearAllData() {
-    if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
+    showAlert('清空数据', '确定要清空所有数据吗？此操作不可恢复！', () => {
         ['myItems','myGiftRecords','myImportantDates','myProfile','myTheme',
          'myDiaries','myBooks','myCustomIcons','myLock'].forEach(k => localStorage.removeItem(k));
         showToast('已清空'); location.reload();
-    }
+    });
 }
 
 // ================= 应用锁 =================
@@ -594,10 +598,10 @@ function loadLockSettings() {
     document.querySelectorAll('.lock-check').forEach(el => el.classList.remove('active'));
     if (l.type) { const el = document.getElementById('lock-' + l.type); if (el) el.classList.add('active'); }
 }
+
 function setLockType(type) {
     const l = getLockSettings();
     if (l.type === type) {
-        // 再次点击 = 取消设置
         l.type = '';
         l.password = '';
         l.pattern = '';
@@ -608,27 +612,28 @@ function setLockType(type) {
     }
 
     if (type === 'password') {
-        const pwd = prompt('请设置密码（4位数字）：');
-        if (pwd === null) return;
-        if (!/^\d{4}$/.test(pwd)) { showToast('请输入4位数字密码', 'error'); return; }
-        const confirmPwd = prompt('请再次输入密码：');
-        if (confirmPwd !== pwd) { showToast('两次密码不一致', 'error'); return; }
-        l.type = 'password';
-        l.password = pwd;
-        l.pattern = '';
-        localStorage.setItem('myLock', JSON.stringify(l));
-        showToast('密码锁设置成功！');
+        showPrompt('请设置密码（4位数字）', '', (pwd) => {
+            if (!/^\d{4}$/.test(pwd)) { showToast('请输入4位数字密码', 'error'); return; }
+            showPrompt('请再次输入密码', '', (confirmPwd) => {
+                if (confirmPwd !== pwd) { showToast('两次密码不一致', 'error'); return; }
+                l.type = 'password';
+                l.password = pwd;
+                l.pattern = '';
+                localStorage.setItem('myLock', JSON.stringify(l));
+                showToast('密码锁设置成功！');
+                loadLockSettings();
+            });
+        });
     } else if (type === 'fingerprint') {
-        if (confirm('是否启用指纹解锁？（模拟，点击确定后需录入指纹）')) {
+        showAlert('启用指纹解锁', '是否启用指纹解锁？（模拟）', () => {
             l.type = 'fingerprint';
             l.password = '';
             l.pattern = '';
             localStorage.setItem('myLock', JSON.stringify(l));
             showToast('指纹锁已启用（模拟）');
-        }
+            loadLockSettings();
+        });
     }
-    // 注意：pattern 分支已删除，图形锁走 openPatternLock()
-    loadLockSettings();
 }
 
 // ================= 事件 chips =================
@@ -1656,7 +1661,6 @@ function renderGiftEventList() {
         });
 
         container.appendChild(div);
-        container.appendChild(div);
     });
 }
 
@@ -2577,7 +2581,6 @@ function renderBookList() {
         });
 
         container.appendChild(div);
-        container.appendChild(div);
     });
 }
 
@@ -2842,6 +2845,47 @@ function finishPattern() {
 
 // ================= Toast 提示 =================
 // ================= 全局确认弹窗 =================
+// ================= 全局输入弹窗 =================
+let promptCallback = null;
+function showPrompt(title, defaultValue, onOk) {
+    promptCallback = onOk;
+    document.getElementById('prompt-title').textContent = title;
+    const input = document.getElementById('prompt-input');
+    input.value = defaultValue || '';
+    document.getElementById('prompt-modal').style.display = 'flex';
+    setTimeout(() => input.focus(), 100);
+}
+function closePrompt() {
+    promptCallback = null;
+    document.getElementById('prompt-modal').style.display = 'none';
+}
+function submitPrompt() {
+    const val = document.getElementById('prompt-input').value;
+    const cb = promptCallback;
+    closePrompt();
+    if (typeof cb === 'function') cb(val);
+}
+
+// ================= 全局消息弹窗 =================
+let alertCallback = null;
+function showAlert(title, message, onOk) {
+    alertCallback = onOk;
+    document.getElementById('alert-title').textContent = title;
+    document.getElementById('alert-message').textContent = message;
+    document.getElementById('alert-modal').style.display = 'flex';
+    document.getElementById('alert-cancel-btn').style.display = 'block';
+}
+function showAlertSimple(title, message) {
+    showAlert(title, message);
+    document.getElementById('alert-cancel-btn').style.display = 'none';
+}
+function closeAlert(isOk) {
+    const cb = alertCallback;
+    alertCallback = null;
+    document.getElementById('alert-modal').style.display = 'none';
+    if (isOk && typeof cb === 'function') cb();
+}
+
 function showConfirm(title, message, onOk) {
     confirmCallback = onOk;
     document.getElementById('confirm-title').textContent = title || '确认删除';
@@ -2918,6 +2962,18 @@ function showToast(msg, type) {
 // ================= 初始化 =================
 window.addEventListener('load', () => {
     applyTheme();
+    
+    // 读取默认启动页
+    const t = getTheme();
+    const startPageMap = {
+        'home': 'page-home',
+        'all-items': 'page-all-items',
+        'gift-record': 'page-gift-record',
+        'important-dates': 'page-important-dates'
+    };
+    const targetPage = startPageMap[t.startpage] || 'page-home';
+    switchPage(targetPage);
+
     updateDashboard();
     updateFilterButtons();
     updateImportantMenuButtons();
@@ -2930,19 +2986,170 @@ window.addEventListener('load', () => {
     renderCategoryGrid();
     renderAcquireGrid();
     for (let i = 0; i < 3; i++) { renderGiftPhotoSlot(i); renderEventPhotoSlot(i); }
-        // 所有返回箭头 ← 换成 SVG
+    
+    // 所有返回箭头 ← 换成 SVG
     document.querySelectorAll('.back-arrow').forEach(el => {
         if (el.textContent.trim() === '←' || el.textContent.trim() === '<') {
             el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
         }
     });
-        // 禁止日历长按选中文字
+    // 禁止日历长按选中文字
     document.querySelectorAll('.calendar-grid').forEach(el => {
         el.style.userSelect = 'none';
         el.style.webkitUserSelect = 'none';
         el.style.webkitTouchCallout = 'none';
     });
+
+    // ====== 新增：检查应用锁 ======
+    checkAppLock();
 });
+
+// ================= 应用锁验证 =================
+let unlockPatternDrawing = false;
+let unlockPatternSelected = [];
+let unlockPatternPoints = [];
+
+function checkAppLock() {
+    const l = getLockSettings();
+    const overlay = document.getElementById('unlock-overlay');
+    if (!l.type) {
+        overlay.style.display = 'none';
+        return;
+    }
+    
+    overlay.style.display = 'flex';
+    
+    // 隐藏所有验证区
+    document.getElementById('unlock-password-area').style.display = 'none';
+    document.getElementById('unlock-fingerprint-area').style.display = 'none';
+    document.getElementById('unlock-pattern-area').style.display = 'none';
+
+    if (l.type === 'password') {
+        document.getElementById('unlock-password-area').style.display = 'block';
+        document.getElementById('unlock-pwd-input').value = '';
+        setTimeout(() => document.getElementById('unlock-pwd-input').focus(), 100);
+    } else if (l.type === 'fingerprint') {
+        document.getElementById('unlock-fingerprint-area').style.display = 'block';
+    } else if (l.type === 'pattern') {
+        document.getElementById('unlock-pattern-area').style.display = 'block';
+        initUnlockPatternCanvas();
+    }
+}
+
+function verifyPassword() {
+    const l = getLockSettings();
+    const input = document.getElementById('unlock-pwd-input').value;
+    if (input === l.password) {
+        document.getElementById('unlock-overlay').style.display = 'none';
+        showToast('解锁成功');
+    } else {
+        showToast('密码错误', 'error');
+        document.getElementById('unlock-pwd-input').value = '';
+    }
+}
+
+function verifyFingerprint() {
+    // 模拟指纹验证
+    setTimeout(() => {
+        document.getElementById('unlock-overlay').style.display = 'none';
+        showToast('指纹验证成功');
+    }, 500);
+}
+
+// --- 图形锁验证 ---
+function initUnlockPatternCanvas() {
+    const canvas = document.getElementById('unlock-pattern-canvas');
+    const cellSize = canvas.width / 3;
+    unlockPatternPoints = [];
+    for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+            unlockPatternPoints.push({ x: cellSize * c + cellSize / 2, y: cellSize * r + cellSize / 2, index: r * 3 + c });
+        }
+    }
+    unlockPatternSelected = [];
+    drawUnlockPattern();
+    document.getElementById('unlock-pattern-hint').innerText = '';
+
+    canvas.onmousedown = (e) => { unlockPatternDrawing = true; handleUnlockPatternMove(e); };
+    canvas.onmousemove = (e) => { if (unlockPatternDrawing) handleUnlockPatternMove(e); };
+    canvas.onmouseup = () => { unlockPatternDrawing = false; finishUnlockPattern(); };
+
+    canvas.ontouchstart = (e) => { e.preventDefault(); unlockPatternDrawing = true; handleUnlockPatternMove(e.touches[0]); };
+    canvas.ontouchmove = (e) => { e.preventDefault(); if (unlockPatternDrawing) handleUnlockPatternMove(e.touches[0]); };
+    canvas.ontouchend = (e) => { e.preventDefault(); unlockPatternDrawing = false; finishUnlockPattern(); };
+}
+
+function handleUnlockPatternMove(e) {
+    const canvas = document.getElementById('unlock-pattern-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const pos = { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+
+    unlockPatternPoints.forEach(p => {
+        if (unlockPatternSelected.includes(p.index)) return;
+        const dist = Math.sqrt((pos.x - p.x) ** 2 + (pos.y - p.y) ** 2);
+        if (dist < 30) {
+            unlockPatternSelected.push(p.index);
+            if (navigator.vibrate) navigator.vibrate(20);
+        }
+    });
+    drawUnlockPattern(pos);
+}
+
+function drawUnlockPattern(currentPos) {
+    const canvas = document.getElementById('unlock-pattern-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    unlockPatternPoints.forEach(p => {
+        const selected = unlockPatternSelected.includes(p.index);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, selected ? 12 : 8, 0, Math.PI * 2);
+        ctx.fillStyle = selected ? '#d98880' : '#bbb';
+        ctx.fill();
+    });
+
+    if (unlockPatternSelected.length > 1) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#d98880';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (let i = 0; i < unlockPatternSelected.length - 1; i++) {
+            const a = unlockPatternPoints[unlockPatternSelected[i]];
+            const b = unlockPatternPoints[unlockPatternSelected[i + 1]];
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+        }
+        if (currentPos && unlockPatternDrawing) {
+            const last = unlockPatternPoints[unlockPatternSelected[unlockPatternSelected.length - 1]];
+            ctx.moveTo(last.x, last.y);
+            ctx.lineTo(currentPos.x, currentPos.y);
+        }
+        ctx.stroke();
+    }
+}
+
+function finishUnlockPattern() {
+    unlockPatternDrawing = false;
+    if (unlockPatternSelected.length < 4) {
+        document.getElementById('unlock-pattern-hint').innerText = '至少连接 4 个点';
+        setTimeout(() => { unlockPatternSelected = []; drawUnlockPattern(); document.getElementById('unlock-pattern-hint').innerText = ''; }, 800);
+        return;
+    }
+
+    const patternStr = unlockPatternSelected.join('-');
+    const l = getLockSettings();
+
+    if (patternStr === l.pattern) {
+        document.getElementById('unlock-overlay').style.display = 'none';
+        showToast('解锁成功');
+    } else {
+        document.getElementById('unlock-pattern-hint').innerText = '图案错误，请重试';
+        setTimeout(() => { unlockPatternSelected = []; drawUnlockPattern(); document.getElementById('unlock-pattern-hint').innerText = ''; }, 800);
+    }
+}
 
 // ================= 全局：点击外部收起弹窗 =================
 document.addEventListener('click', function(e) {
@@ -3064,7 +3271,6 @@ function renderDiaryPanel(dateStr) {
             });
         });
 
-        body.appendChild(card);
         body.appendChild(card);
     });
 }

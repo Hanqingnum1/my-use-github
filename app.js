@@ -88,6 +88,15 @@ let currentBookViewId = null;
 let iconSrcImage = null;
 let selectedIconCells = []; // [{row, col, num}]
 
+// 批量多选
+let multiSelectMode = { items: false, gift: false, important: false, diary: false };
+let multiSelectedIds = {
+    items: new Set(),
+    gift: new Set(),
+    important: new Set(),
+    diary: new Set()
+};
+
 const nationalHolidays = {
     '01-01': '元旦', '02-14': '情人节', '03-08': '妇女节', '03-12': '植树节',
     '04-01': '愚人节', '05-01': '劳动节', '05-04': '青年节', '06-01': '儿童节',
@@ -461,6 +470,13 @@ const I18N = {
         '全部图书': 'All Books',
         '篇': 'items',
         '详情': 'Detail',
+        '选择': 'Select',
+        '已选 {n} 项': '{n} selected',
+        '批量删除': 'Delete Selected',
+        '改状态': 'Change Status',
+        '确定删除选中的 {n} 项吗？删除后无法恢复。': 'Delete {n} selected items? Cannot be undone.',
+        '已改为「{status}」': 'Changed to "{status}"',
+        '返回': 'Back',
     },
     'de': {
         '我的生活': 'Mein Leben',
@@ -694,6 +710,13 @@ const I18N = {
         '全部图书': 'Alle Bücher',
         '篇': 'Einträge',
         '详情': 'Detail',
+        '选择': 'Auswählen',
+        '已选 {n} 项': '{n} ausgewählt',
+        '批量删除': 'Auswahl löschen',
+        '改状态': 'Status ändern',
+        '确定删除选中的 {n} 项吗？删除后无法恢复。': '{n} ausgewählte löschen? Nicht rückgängig machbar.',
+        '已改为「{status}」': 'Geändert zu "{status}"',
+        '返回': 'Zurück',
     }
 };
 
@@ -811,6 +834,13 @@ function applyLanguage() {
 
 // ================= 页面切换 =================
 function switchPage(pageId) {
+    // 切换页面时，退出所有多选模式
+    if (document.body.classList.contains('multi-select-mode')) {
+        ['items', 'gift', 'important', 'diary'].forEach(t => {
+            if (multiSelectMode[t]) exitMultiSelect(t);
+        });
+    }
+
     // 底部导航只在4个主页面显示
     const mainPages = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates'];
     const nav = document.querySelector('.bottom-nav');
@@ -1932,9 +1962,13 @@ function renderItemsList() {
     const placeholder = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNjY2MiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiPjwvcmVjdD48Y2lyY2xlIGN4PSI4LjUiIGN5PSI4LjUiIHI9IjEuNSI+PC9jaXJjbGU+PHBvbHlsaW5lIHBvaW50cz0iMjEgMTUgMTYgMTAgNSAyMSI+PC9wb2x5bGluZT48L3N2Zz4=';
 
     items.forEach(item => {
+        const isMulti = multiSelectMode.items;
+        const isChecked = isMulti && multiSelectedIds.items.has(item.id);
+
         const div = document.createElement('div');
         div.className = allItemsView === 'tile' ? 'item-tile' : 'item-card-new';
-        div.setAttribute('onclick', `editItem(${item.id})`);
+        if (isChecked) div.classList.add('multi-checked');
+        div.setAttribute('data-multi-id', `items-${item.id}`);
 
         const imgSrc = item.image || placeholder;
         const status = getItemStatus(item);
@@ -1960,8 +1994,11 @@ function renderItemsList() {
                 : `<span class="mini-badge mini-danger">${T('已过保{n}天', { n: Math.abs(dWar) })}</span>`;
         }
 
+        const checkboxHtml = isMulti ? `<div class="multi-checkbox ${isChecked ? 'checked' : ''}"></div>` : '';
+
         if (allItemsView === 'tile') {
             div.innerHTML = `
+                ${checkboxHtml}
                 <img src="${imgSrc}" class="tile-img">
                 <div class="tile-name">${item.name}</div>
                 <div class="tile-tags">
@@ -1973,6 +2010,7 @@ function renderItemsList() {
             `;
         } else {
             div.innerHTML = `
+                ${checkboxHtml}
                 <img src="${imgSrc}" class="item-img-new">
                 <div class="item-info-new">
                     <div class="item-name-new">${item.name} <span class="item-qty-new">x${item.quantity}</span></div>
@@ -1986,16 +2024,21 @@ function renderItemsList() {
                 </div>
             `;
         }
-        // 长按删除
-        bindLongPress(div, () => {
-            showConfirm(T('删除物品'), T('确定删除「{name}」吗？删除后无法恢复。', { name: item.name }), () => {
-                let items = getItems().filter(i => i.id !== item.id);
-                localStorage.setItem('myItems', JSON.stringify(items));
-                showToast(T('已删除'));
-                renderItemsList();
-                updateItemStats();
+
+        if (isMulti) {
+            div.onclick = () => toggleMultiSelected('items', item.id);
+        } else {
+            div.onclick = () => editItem(item.id);
+            bindLongPress(div, () => {
+                showConfirm(T('删除物品'), T('确定删除「{name}」吗？删除后无法恢复。', { name: item.name }), () => {
+                    let items2 = getItems().filter(i => i.id !== item.id);
+                    localStorage.setItem('myItems', JSON.stringify(items2));
+                    showToast(T('已删除'));
+                    renderItemsList();
+                    updateItemStats();
+                });
             });
-        });
+        }
 
         container.appendChild(div);
     });
@@ -2283,6 +2326,9 @@ function renderGiftList() {
     const receiveColors = ['#d5f4e6', '#a9dfbf', '#7dcea0', '#a2d9ce'];
 
     processed.forEach(record => {
+        const isMulti = multiSelectMode.gift;
+        const isChecked = isMulti && multiSelectedIds.gift.has(record.id);
+
         let total = 0;
         record.filteredEvents.forEach(e => {
             if (e.type === '收礼') {
@@ -2291,12 +2337,10 @@ function renderGiftList() {
                 total -= (e.amount || 0);
             }
         });
-        // 为了视觉更直观，正数前面加个 + 号，负数自带 - 号
         const totalText = total > 0 ? `+¥${total}` : total < 0 ? `-¥${Math.abs(total)}` : `¥0`;
         const firstChar = (record.person || '?').charAt(0);
         const count = record.filteredEvents.length;
 
-        // 事件标签
         let tagsHtml = '';
         let redIdx = 0, greenIdx = 0;
         record.filteredEvents.slice(0, 6).forEach(ev => {
@@ -2309,12 +2353,16 @@ function renderGiftList() {
             tagsHtml += `<span class="mini-tag" style="background:#eee;color:#888;">+${record.filteredEvents.length - 6}</span>`;
         }
 
+        const checkboxHtml = isMulti ? `<div class="multi-checkbox ${isChecked ? 'checked' : ''}"></div>` : '';
+
         const div = document.createElement('div');
-        div.setAttribute('onclick', `showGiftDetail(${record.id})`);
+        div.setAttribute('data-multi-id', `gift-${record.id}`);
+        if (isChecked) div.classList.add('multi-checked');
 
         if (giftView === 'tile') {
             div.className = 'item-tile';
             div.innerHTML = `
+                ${checkboxHtml}
                 <div class="gift-avatar-tile">${firstChar}</div>
                 <div class="tile-name">${record.person}</div>
                 <div class="tile-tags">${tagsHtml}</div>
@@ -2323,6 +2371,7 @@ function renderGiftList() {
         } else {
             div.className = 'item-card-new';
             div.innerHTML = `
+                ${checkboxHtml}
                 <div class="gift-avatar">${firstChar}</div>
                 <div class="item-info-new">
                     <div class="item-name-new">${record.person} <span class="item-qty-new">${T('{n} 笔', { n: count })}</span></div>
@@ -2331,15 +2380,20 @@ function renderGiftList() {
                 <div class="gift-total-new">${totalText}</div>
             `;
         }
-        // 长按删除这个人
-        bindLongPress(div, () => {
+
+        if (isMulti) {
+            div.onclick = () => toggleMultiSelected('gift', record.id);
+        } else {
+            div.onclick = () => showGiftDetail(record.id);
+            bindLongPress(div, () => {
                 showConfirm(T('删除随礼记录'), T('确定删除「{name}」吗？他/她的所有随礼记录都会一起删除。', { name: record.person }), () => {
-                let records = getGiftRecords().filter(r => r.id !== record.id);
-                localStorage.setItem('myGiftRecords', JSON.stringify(records));
-                showToast(T('已删除'));
-                renderGiftList();
+                    let records2 = getGiftRecords().filter(r => r.id !== record.id);
+                    localStorage.setItem('myGiftRecords', JSON.stringify(records2));
+                    showToast(T('已删除'));
+                    renderGiftList();
+                });
             });
-        });
+        }
 
         container.appendChild(div);
     });
@@ -2716,8 +2770,8 @@ function renderCalendar() {
         const now = new Date();
         const isToday = (calYear === now.getFullYear() && calMonth === (now.getMonth() + 1) && d === now.getDate());
 
-        const isSelected = selectedCalDate === dateStr;
-        html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
+                const isSelected = selectedCalDate === dateStr;
+                html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-date="${dateStr}">
             <span class="cal-day">${d}</span>
             ${jieQiText ? `<span class="cal-holiday">${jieQiText}</span>` : (lunarText ? `<span class="cal-lunar">${lunarText}</span>` : '')}
             ${holiday ? `<span class="cal-holiday">${T(holiday)}</span>` : ''}
@@ -2727,29 +2781,59 @@ function renderCalendar() {
     }
         grid.innerHTML = html;
 
-    // 绑定长按事件（弹出日记面板）
+    // 绑定点击和长按（统一走 JS，避免 preventDefault 吃掉 click）
     document.querySelectorAll('#calendar-grid .cal-cell:not(.empty)').forEach(cell => {
         const dateStr = cell.dataset.date;
         if (!dateStr) return;
-        let fired = false;
+
+        let longPressFired = false;
+        let touchMoved = false;
+        let startX = 0, startY = 0;
+        let lpT = null;
+
         const startPress = (e) => {
             if (e && e.cancelable) e.preventDefault();
-            fired = false;
-            longPressTimer = setTimeout(() => {
-                fired = true;
+            longPressFired = false;
+            touchMoved = false;
+            const p = e.touches ? e.touches[0] : e;
+            startX = p.clientX;
+            startY = p.clientY;
+            clearTimeout(lpT);
+            lpT = setTimeout(() => {
+                longPressFired = true;
                 isLongPress = true;
                 if (navigator.vibrate) navigator.vibrate(30);
                 longPressNewDiary(dateStr);
-            }, 600);
+            }, 550);
         };
-        const cancelPress = () => clearTimeout(longPressTimer);
+
+        const movePress = (e) => {
+            const p = e.touches ? e.touches[0] : e;
+            if (Math.abs(p.clientX - startX) > 8 || Math.abs(p.clientY - startY) > 8) {
+                touchMoved = true;
+                clearTimeout(lpT);
+            }
+        };
+
+        const endPress = () => {
+            clearTimeout(lpT);
+            if (!longPressFired && !touchMoved) {
+                selectCalDay(dateStr);
+            }
+            if (longPressFired) {
+                setTimeout(() => { isLongPress = false; }, 300);
+            }
+        };
+
+        const cancelPress = () => { clearTimeout(lpT); };
 
         cell.addEventListener('touchstart', startPress, { passive: false });
-        cell.addEventListener('touchend', cancelPress);
-        cell.addEventListener('touchmove', cancelPress);
+        cell.addEventListener('touchmove', movePress, { passive: true });
+        cell.addEventListener('touchend', endPress);
         cell.addEventListener('touchcancel', cancelPress);
+
         cell.addEventListener('mousedown', startPress);
-        cell.addEventListener('mouseup', cancelPress);
+        cell.addEventListener('mouseup', endPress);
         cell.addEventListener('mouseleave', cancelPress);
     });
 }
@@ -3696,7 +3780,160 @@ function confirmOk() {
     closeConfirm();
     if (typeof cb === 'function') cb();
 }
+// ================= 批量多选核心逻辑 =================
+function toggleMultiSelect(type) {
+    if (multiSelectMode[type]) {
+        // 退出
+        exitMultiSelect(type);
+        renderMultiList(type);
+    } else {
+        // 进入
+        multiSelectMode[type] = true;
+        multiSelectedIds[type].clear();
+        // 重要日期：如果当前在日历视图，切到列表视图
+        if (type === 'important' && importantViewMode === 'calendar') {
+            showImportantListView();
+        }
+        const btn = document.getElementById('multi-select-btn-' + type);
+        if (btn) {
+            btn.textContent = T('取消');
+            btn.classList.add('multi-select-active');
+        }
+        document.body.classList.add('multi-select-mode');
+        renderMultiList(type);
+        updateMultiSelectBar(type);
+    }
+}
 
+function exitMultiSelect(type) {
+    multiSelectMode[type] = false;
+    multiSelectedIds[type].clear();
+    const btn = document.getElementById('multi-select-btn-' + type);
+    if (btn) {
+        btn.textContent = T('选择');
+        btn.classList.remove('multi-select-active');
+    }
+    const anyActive = Object.values(multiSelectMode).some(v => v);
+    if (!anyActive) {
+        document.body.classList.remove('multi-select-mode');
+        const bar = document.getElementById('multi-select-bar');
+        if (bar) bar.style.display = 'none';
+    }
+    // 修复：重要日期退出多选时，无论如何切回日历视图
+    if (type === 'important') {
+        document.getElementById('calendar-view').style.display = 'block';
+        document.getElementById('important-list-view').style.display = 'none';
+        document.getElementById('upcoming-7days-card').style.display = 'block';
+        importantViewMode = 'calendar';
+        renderCalendar();
+        renderUpcoming7Days();
+    }
+}
+
+function toggleMultiSelected(type, id) {
+    if (!multiSelectMode[type]) return;
+    const set = multiSelectedIds[type];
+    if (set.has(id)) set.delete(id);
+    else set.add(id);
+    updateCardSelection(type, id);
+    updateMultiSelectBar(type);
+}
+
+function updateCardSelection(type, id) {
+    const card = document.querySelector(`[data-multi-id="${type}-${id}"]`);
+    if (!card) return;
+    const checked = multiSelectedIds[type].has(id);
+    const cb = card.querySelector('.multi-checkbox');
+    if (cb) cb.classList.toggle('checked', checked);
+    card.classList.toggle('multi-checked', checked);
+}
+
+function updateMultiSelectBar(type) {
+    const bar = document.getElementById('multi-select-bar');
+    if (!bar) return;
+    if (!multiSelectMode[type]) {
+        bar.style.display = 'none';
+        return;
+    }
+    bar.style.display = 'flex';
+    const count = multiSelectedIds[type].size;
+    document.getElementById('multi-select-count').textContent = T('已选 {n} 项', { n: count });
+
+    const btns = document.getElementById('multi-select-action-btns');
+    const disabledAttr = count === 0 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : '';
+    let html = '';
+    if (type === 'items') {
+        html += `<button class="multi-action-btn status" ${disabledAttr} onclick="batchChangeStatusSelected()">${T('改状态')}</button>`;
+    }
+    html += `<button class="multi-action-btn delete" ${disabledAttr} onclick="batchDeleteSelected('${type}')">${T('删除')}</button>`;
+    btns.innerHTML = html;
+}
+
+function renderMultiList(type) {
+    if (type === 'items') renderItemsList();
+    else if (type === 'gift') renderGiftList();
+    else if (type === 'important') renderImportantList();
+    else if (type === 'diary') renderDiaryList();
+}
+
+function batchDeleteSelected(type) {
+    const ids = Array.from(multiSelectedIds[type]);
+    if (ids.length === 0) return;
+
+    const msg = T('确定删除选中的 {n} 项吗？删除后无法恢复。', { n: ids.length });
+
+    showConfirm(T('批量删除'), msg, () => {
+        if (type === 'items') {
+            const items = getItems().filter(i => !ids.includes(i.id));
+            localStorage.setItem('myItems', JSON.stringify(items));
+        } else if (type === 'gift') {
+            const records = getGiftRecords().filter(r => !ids.includes(r.id));
+            localStorage.setItem('myGiftRecords', JSON.stringify(records));
+        } else if (type === 'important') {
+            const dates = getImportantDates().filter(d => !ids.includes(d.id));
+            localStorage.setItem('myImportantDates', JSON.stringify(dates));
+            renderCalendar();
+            renderUpcomingDates();
+            renderUpcoming7Days();
+        } else if (type === 'diary') {
+            const list = getDiaries().filter(d => !ids.includes(d.id));
+            saveDiaries(list);
+        }
+
+        showToast(T('已删除'));
+        exitMultiSelect(type);
+        renderMultiList(type);
+
+        if (type === 'items') updateItemStats();
+    });
+}
+
+function batchChangeStatusSelected() {
+    const ids = Array.from(multiSelectedIds.items);
+    if (ids.length === 0) return;
+
+    const btns = document.getElementById('multi-select-action-btns');
+    btns.innerHTML = `
+        <button class="multi-action-btn status" onclick="applyBatchStatus('持有中')">${T('持有中')}</button>
+        <button class="multi-action-btn status" onclick="applyBatchStatus('暂离中')">${T('暂离中')}</button>
+        <button class="multi-action-btn status" onclick="applyBatchStatus('已移除')">${T('已移除')}</button>
+        <button class="multi-action-btn status" style="background:#eee;" onclick="updateMultiSelectBar('items')">${T('返回')}</button>
+    `;
+}
+
+function applyBatchStatus(status) {
+    const ids = Array.from(multiSelectedIds.items);
+    if (ids.length === 0) return;
+
+    let items = getItems();
+    items = items.map(i => ids.includes(i.id) ? { ...i, status } : i);
+    localStorage.setItem('myItems', JSON.stringify(items));
+
+    showToast(T('已改为「{status}」', { status: T(status) }));
+    exitMultiSelect('items');
+    renderItemsList();
+    updateItemStats();
+}
 function showToast(msg, type) {
     let container = document.getElementById('toast-container');
     if (!container) {
@@ -4096,13 +4333,21 @@ function renderDiaryList() {
     }
     container.innerHTML = '';
     list.forEach(d => {
+        const isMulti = multiSelectMode.diary;
+        const isChecked = isMulti && multiSelectedIds.diary.has(d.id);
+
         const card = document.createElement('div');
         card.className = 'diary-list-card' + (d.type === '便签' ? ' note' : '');
+        if (isChecked) card.classList.add('multi-checked');
+        card.setAttribute('data-multi-id', `diary-${d.id}`);
+
         const icon = d.type === '日记' ? '📔' : '📝';
         const time = new Date(d.createdAt);
         const timeStr = `${String(time.getHours()).padStart(2,'0')}:${String(time.getMinutes()).padStart(2,'0')}`;
         let preview = (d.content || '').replace(/^[□☑✓]\s*/gm, '').trim();
+        const checkboxHtml = isMulti ? `<div class="multi-checkbox ${isChecked ? 'checked' : ''}"></div>` : '';
         card.innerHTML = `
+            ${checkboxHtml}
             <div class="diary-list-card-header">
                 <span>${icon} ${T(d.type)}</span>
                 <span>${timeStr}</span>
@@ -4110,7 +4355,21 @@ function renderDiaryList() {
             ${d.title ? `<div class="diary-list-card-title">${escapeHtml(d.title)}</div>` : ''}
             ${preview ? `<div class="diary-list-card-preview">${escapeHtml(preview)}</div>` : ''}
         `;
-        card.onclick = () => showDiaryView(d.id);
+
+        if (isMulti) {
+            card.onclick = () => toggleMultiSelected('diary', d.id);
+        } else {
+            card.onclick = () => showDiaryView(d.id);
+            bindLongPress(card, () => {
+                showConfirm(T('删除日记'), T('确定删除这条{type}吗？', { type: T(d.type) }), () => {
+                    const list2 = getDiaries().filter(x => x.id !== d.id);
+                    saveDiaries(list2);
+                    showToast(T('已删除'));
+                    renderDiaryList();
+                });
+            });
+        }
+
         container.appendChild(card);
     });
 }

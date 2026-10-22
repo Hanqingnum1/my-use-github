@@ -1397,3 +1397,151 @@ body.dark-mode .book-input:focus {
 .diary-task-item.checked .diary-task-text {
     color: var(--text-sub); text-decoration: line-through;
 }
+
+/* =============== 批量选择模式 =============== */
+/* 卡片进入选择模式后要有一个"待勾"的视觉提示 */
+.multi-select-mode .item-card-new,
+.multi-select-mode .item-tile,
+.multi-select-mode .important-card,
+.multi-select-mode .diary-list-card {
+    position: relative;
+}
+
+/* 卡片上的勾选框 */
+.multi-checkbox {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--divider);
+    background: var(--card-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 5;
+    transition: all 0.15s;
+}
+
+/* 平铺视图里图片占满，勾选框要更明显 */
+.multi-select-mode .item-tile .multi-checkbox {
+    background: rgba(255,255,255,0.9);
+}
+
+/* 选中后的勾选框：变主题色、显示 ✓ */
+.multi-checkbox.checked {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+.multi-checkbox.checked::after {
+    content: "✓";
+    color: #fff;
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+/* 卡片本身被选中时加边框提示 */
+.multi-select-mode .item-card-new.multi-checked,
+.multi-select-mode .item-tile.multi-checked,
+.multi-select-mode .important-card.multi-checked,
+.multi-select-mode .diary-list-card.multi-checked {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+/* 列表卡片进入选择模式时，需要给左侧留出勾选框的空间，
+   避免文字被勾选框盖住（仅对非平铺卡生效） */
+.multi-select-mode .item-card-new,
+.multi-select-mode .important-card,
+.multi-select-mode .diary-list-card {
+    padding-left: 40px !important;
+}
+
+/* 平铺视图下，图片是满宽的，勾选框浮在图片上方即可，不用给 padding */
+.multi-select-mode .item-tile {
+    padding-left: 10px !important;
+}
+
+/* 进入选择模式后，短按卡片 = 切换选中，不要跳详情
+   （JS 里会判断 mode，这里只管视觉） */
+.multi-select-mode .item-card-new,
+.multi-select-mode .item-tile,
+.multi-select-mode .important-card,
+.multi-select-mode .diary-list-card {
+    cursor: pointer;
+}
+
+/* =============== 底部悬浮批量操作栏 =============== */
+#multi-select-bar {
+    position: fixed;
+    left: 50%;
+    bottom: calc(120px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 1002;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 24px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    max-width: calc(100vw - 40px);
+    white-space: nowrap;
+}
+
+body.dark-mode #multi-select-bar {
+    background: rgba(40, 40, 44, 0.95);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+#multi-select-count {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+#multi-select-action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.multi-action-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.multi-action-btn.delete {
+    background: #d98880;
+    color: #fff;
+}
+.multi-action-btn.delete:active {
+    opacity: 0.85;
+}
+
+.multi-action-btn.status {
+    background: var(--primary-light);
+    color: var(--text-main);
+}
+.multi-action-btn.status:active {
+    opacity: 0.85;
+}
+
+/* 「选择」按钮进入激活态（变成「取消」时）用粗体强调 */
+.multi-select-active {
+    font-weight: 800 !important;
+}
+
+/* 多选模式下隐藏悬浮添加按钮，避免与底部批量操作栏重叠 */
+body.multi-select-mode .floating-add-btn {
+    display: none !important;
+}

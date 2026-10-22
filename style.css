@@ -25,12 +25,29 @@ body.dark-mode {
 body {
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
     background-color: var(--bg-color); color: var(--text-main);
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
     max-width: 500px; margin: 0 auto;
     transition: background-color 0.3s;
 }
 .page { display: none; padding: 20px 16px; }
-.page.active { display: block; }
+
+/* 定义丝滑上浮动画 */
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.page.active { 
+    display: block; 
+    /* 0.4s 是动画时长，cubic-bezier 是缓动曲线，让动画有“呼吸感” */
+    animation: slideUpFade 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
 .card { background: var(--card-bg); border-radius: 20px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.03); margin-bottom: 16px; }
 .home-header { display: flex; align-items: center; margin-bottom: 20px; padding: 0 6px; }
 .logo-icon {
@@ -79,11 +96,28 @@ body {
     cursor: pointer; margin-top: 12px;
 }
 .bottom-nav {
-    position: fixed; bottom: 0; left: 0; right: 0; max-width: 500px;
-    margin: 0 auto; display: flex; background: var(--card-bg);
-    border-top: 1px solid var(--divider);
-    box-shadow: 0 -4px 16px rgba(0,0,0,0.03);
-    padding-bottom: env(safe-area-inset-bottom); z-index: 999;
+    position: fixed; 
+    bottom: 20px; /* 让导航栏离开底部边缘 */
+    left: 20px; 
+    right: 20px; 
+    max-width: 460px; /* 限制最大宽度（屏幕居中） */
+    margin: 0 auto; 
+    display: flex; 
+    /* 浅色模式下 85% 透明的背景 + 毛玻璃 */
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px); /* 兼容苹果设备 */
+    border-radius: 24px; /* 大圆角，让它看起来像个胶囊 */
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12); /* 四周的阴影，更有立体感 */
+    padding: 6px 0; 
+    z-index: 999;
+    /* 去掉了原来的 border-top 和 safe-area-inset-bottom */
+}
+
+/* 针对深夜模式，把阴影调得更深一点，并且把背景换成深色毛玻璃 */
+body.dark-mode .bottom-nav {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    background: rgba(40, 40, 44, 0.85); /* 添加这行：深灰色的半透明 */
 }
 .nav-item {
     flex: 1; text-align: center; padding: 10px 0;
@@ -333,6 +367,9 @@ body.dark-mode .progress-bar-bg {
     background: #4a4a52;
 }
 
+body {
+    overflow-x: hidden; /* 防止横向抖动 */
+}
 
 /* =============== 图形锁 =============== */
 #pattern-canvas {
@@ -1213,4 +1250,9 @@ body.dark-mode .book-form-card {
 
 body.dark-mode .book-input:focus {
     background: #3a342c;
+}
+
+.hero-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
 }

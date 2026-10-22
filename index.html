@@ -16,17 +16,20 @@
 <div id="page-home" class="page active">
     <div class="home-header">
         <div class="logo-icon" onclick="openDrawer()">☰</div>
-        <span class="app-title">我的生活</span>
+        <span class="app-title" data-i18n="app.title">我的生活</span>
     </div>
 
-    <div class="hero-card">
-        <div class="hero-header"><span>我居然买了这么多 😱</span><span id="total-count">0 件</span></div>
+    <div class="hero-card" onclick="switchPage('page-all-items')" style="cursor: pointer;">
+        <div class="hero-header"><span data-i18n="home.bought">我居然买了这么多 😱</span><span id="total-count">0 件</span></div>
         <div class="hero-value" id="total-item-price">¥ 0.00</div>
-        <div class="hero-footer">本月支出 ¥ 0.00</div>
+        <div class="hero-footer" data-i18n="home.monthSpend">本月支出 ¥ 0.00</div>
     </div>
 
-    <div class="hero-card hero-gift">
-        <div class="hero-header"><span>这都是人情世故啊 😮‍💨</span></div>
+    <div class="hero-card hero-gift" onclick="switchPage('page-gift-record')" style="cursor: pointer;">
+        <div class="hero-header">
+            <span data-i18n="home.gift">这都是人情世故啊 😮‍💨</span>
+            <span id="total-gift-count">0 笔</span>
+        </div>
         <div class="hero-value" id="total-gift-amount">¥ 0.00</div>
     </div>
 
@@ -34,19 +37,19 @@
                 <div class="quick-grid">
             <div class="quick-item" onclick="switchPage('page-add')">
                 <div class="quick-icon" style="background:#fde8e0; color:#e07b53;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-                <span>物品</span>
+                <span data-i18n="home.addItem">物品</span>
             </div>
             <div class="quick-item" onclick="switchPage('page-add-gift')">
                 <div class="quick-icon" style="background:#fde8f0; color:#d17b9d;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-                <span>随礼</span>
+                <span data-i18n="home.addGift">随礼</span>
             </div>
             <div class="quick-item" onclick="switchPage('page-add-important')">
                 <div class="quick-icon" style="background:#efe4fb; color:#a98bcc;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-                <span>重要日期</span>
+                <span data-i18n="home.addImportant">重要日期</span>
             </div>
             <div class="quick-item" onclick="showBookDetail()">
                 <div class="quick-icon" style="background:#e8f4ff; color:#2e86de;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-                <span>书本</span>
+                <span data-i18n="home.addBook">书本</span>
             </div>
         </div>
     </div>
@@ -65,14 +68,14 @@
 
     <!-- 卡片1：物品图片 -->
     <div class="card">
-        <div class="card-section-title">物品图片</div>
+        <div class="card-section-title" data-i18n="item.img">物品图片</div>
         <div class="image-upload-row">
             <div class="image-upload-box">
                 <input type="file" id="item-image-0" accept="image/*" onchange="uploadItemImage(0, this)" style="display:none;">
                 <img id="item-image-preview-0" class="image-preview" style="display:none;">
                 <div class="upload-placeholder" id="upload-placeholder-0" onclick="triggerImageUpload(0)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    <span>上传</span>
+                    <span data-i18n="item.upload">上传</span>
                 </div>
                 <div class="image-remove-btn" id="image-remove-0" onclick="removeItemImage(0, event)" style="display:none;">×</div>
             </div>
@@ -81,7 +84,7 @@
                 <img id="item-image-preview-1" class="image-preview" style="display:none;">
                 <div class="upload-placeholder" id="upload-placeholder-1" onclick="triggerImageUpload(1)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    <span>上传</span>
+                    <span data-i18n="item.upload">上传</span>
                 </div>
                 <div class="image-remove-btn" id="image-remove-1" onclick="removeItemImage(1, event)" style="display:none;">×</div>
             </div>
@@ -90,7 +93,7 @@
                 <img id="item-image-preview-2" class="image-preview" style="display:none;">
                 <div class="upload-placeholder" id="upload-placeholder-2" onclick="triggerImageUpload(2)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    <span>上传</span>
+                    <span data-i18n="item.upload">上传</span>
                 </div>
                 <div class="image-remove-btn" id="image-remove-2" onclick="removeItemImage(2, event)" style="display:none;">×</div>
             </div>
@@ -99,11 +102,11 @@
 
     <!-- 卡片2：基本信息 -->
     <div class="card">
-        <div class="card-section-title">基本信息</div>
+        <div class="card-section-title" data-i18n="item.basic">基本信息</div>
         <div class="form-group">
-            <label>物品名称</label>
+            <label data-i18n="item.name">物品名称</label>
             <div class="name-quantity-row">
-                <input type="text" id="item-name" placeholder="例如：吹风机" class="form-input-rounded">
+                <input type="text" id="item-name" data-i18n-placeholder="item.namePh" placeholder="例如：吹风机" class="form-input-rounded">
                 <div class="quantity-control">
                     <button type="button" class="qty-btn" onclick="changeQuantity(-1)">−</button>
                     <input type="number" id="item-quantity" value="1" min="1" max="999" onchange="clampQuantity()">
@@ -112,52 +115,52 @@
             </div>
         </div>
         <div class="form-group">
-            <label>分类</label>
+            <label data-i18n="item.category">分类</label>
             <div class="category-grid" id="category-grid"></div>
         </div>
     </div>
 
     <!-- 卡片3：其他信息 -->
     <div class="card">
-        <div class="card-section-title">其他信息</div>
+        <div class="card-section-title" data-i18n="item.other">其他信息</div>
         <div class="form-group">
-            <label>获取方式</label>
+            <label data-i18n="item.acquire">获取方式</label>
             <div class="acquire-grid" id="acquire-grid"></div>
         </div>
         <div class="form-group">
-            <label>购买价格 / 日期</label>
+            <label data-i18n="item.priceDate">购买价格 / 日期</label>
             <div class="price-date-row">
-                <input type="number" id="item-price" placeholder="价格" class="form-input-rounded">
+                <input type="number" id="item-price" data-i18n-placeholder="item.price" placeholder="价格" class="form-input-rounded">
                 <div class="date-input-wrapper" onclick="openDatePicker('purchase-date')">
-                    <input type="text" id="purchase-date" readonly placeholder="购买日期" class="form-input-rounded">
+                    <input type="text" id="purchase-date" readonly data-i18n-placeholder="item.buyDate" placeholder="购买日期" class="form-input-rounded">
                     <svg class="date-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 </div>
             </div>
         </div>
         <div class="form-group" id="expiry-box" style="display:none;">
-            <label>物品保质期</label>
+            <label data-i18n="item.expiry">物品保质期</label>
             <div class="date-input-wrapper" onclick="openDatePicker('expiry-date')">
-                <input type="text" id="expiry-date" readonly placeholder="点击选择" class="form-input-rounded">
+                <input type="text" id="expiry-date" readonly data-i18n-placeholder="tip.selectDate" placeholder="点击选择" class="form-input-rounded">
                 <svg class="date-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </div>
         </div>
         <div class="form-group" id="warranty-box" style="display:none;">
-            <label>物品质保期</label>
+            <label data-i18n="item.warranty">物品质保期</label>
             <div class="date-input-wrapper" onclick="openDatePicker('warranty-date')">
-                <input type="text" id="warranty-date" readonly placeholder="点击选择" class="form-input-rounded">
+                <input type="text" id="warranty-date" readonly data-i18n-placeholder="tip.selectDate" placeholder="点击选择" class="form-input-rounded">
                 <svg class="date-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </div>
         </div>
         <div class="form-group">
-            <label>备注</label>
-            <textarea id="item-remark" placeholder="其他需要记录的信息..." class="form-input-rounded" rows="3" style="resize:vertical; font-family:inherit;"></textarea>
+            <label data-i18n="item.remark">备注</label>
+            <textarea id="item-remark" data-i18n-placeholder="tip.remark" placeholder="其他需要记录的信息..." class="form-input-rounded" rows="3" style="resize:vertical; font-family:inherit;"></textarea>
         </div>
         <div class="form-group">
-            <label>物品状态</label>
+            <label data-i18n="item.status">物品状态</label>
             <div class="event-chips">
-                <button class="chip" data-status="持有中" onclick="selectItemStatus('持有中')">持有中</button>
-                <button class="chip" data-status="暂离中" onclick="selectItemStatus('暂离中')">暂离中</button>
-                <button class="chip" data-status="已移除" onclick="selectItemStatus('已移除')">已移除</button>
+                <button class="chip" data-status="持有中" data-i18n="item.held" onclick="selectItemStatus('持有中')">持有中</button>
+                <button class="chip" data-status="暂离中" data-i18n="item.paused" onclick="selectItemStatus('暂离中')">暂离中</button>
+                <button class="chip" data-status="已移除" data-i18n="item.removed" onclick="selectItemStatus('已移除')">已移除</button>
             </div>
         </div>
     </div>
@@ -165,7 +168,7 @@
     <!-- 卡片4：底部大按钮 -->
     <div class="big-submit-card" onclick="saveItem()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><polyline points="20 6 9 17 4 12"/></svg>
-        <span id="item-submit-text">添加物品</span>
+        <span id="item-submit-text" data-i18n="item.addBtn">添加物品</span>
     </div>
 
 </div>
@@ -173,7 +176,7 @@
 <!-- ============ 3. 全部物品 ============ -->
 <div id="page-all-items" class="page">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 6px;">
-        <h3 class="page-main-title">全部物品</h3>
+        <h3 class="page-main-title" data-i18n="item.all">全部物品</h3>
         <div style="display:inline-flex; align-items:center; gap:14px;">
             <span onclick="switchPage('page-item-distribution')" style="cursor:pointer; color:var(--primary); display:inline-flex;">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>
@@ -185,43 +188,43 @@
     </div>
 
     <div id="search-bar-wrapper" style="display:none; margin-bottom:12px;">
-        <input type="text" id="search-input" oninput="renderItemsList()" placeholder="搜索物品名称或分类..." class="form-input">
+        <input type="text" id="search-input" oninput="renderItemsList()" data-i18n-placeholder="item.search" placeholder="搜索物品名称或分类..." class="form-input">
     </div>
 
     <div class="top-stats-row">
         <div class="stat-card" id="stat-held" onclick="selectTopCard('held')">
             <div class="stat-num" id="stat-held-num">0</div>
-            <div class="stat-label">持有</div>
+            <div class="stat-label" data-i18n="item.heldTitle">持有</div>
             <div class="stat-extra" id="stat-held-extra"></div>
         </div>
         <div class="stat-card" id="stat-expiring" onclick="selectTopCard('expiring')">
             <div class="stat-num" id="stat-expiring-num">0</div>
-            <div class="stat-label">快过期</div>
+            <div class="stat-label" data-i18n="item.expiring">快过期</div>
         </div>
         <div class="stat-card" id="stat-warranty" onclick="selectTopCard('warranty')">
             <div class="stat-num" id="stat-warranty-num">0</div>
-            <div class="stat-label">快过保</div>
+            <div class="stat-label" data-i18n="item.warrantyTitle">快过保</div>
         </div>
     </div>
 
     <div class="filter-bar">
         <select id="filter-all" onchange="setAllItemsFilter(this.value)" class="filter-select">
-            <option value="all">全部</option>
-            <option value="expired">已过期</option>
-            <option value="warranty-expired">已过保</option>
-            <option value="held">持有</option>
-            <option value="paused">暂离</option>
-            <option value="removed">移除</option>
+            <option value="all" data-i18n="item.filterAll">全部</option>
+            <option value="expired" data-i18n="item.filterExpired">已过期</option>
+            <option value="warranty-expired" data-i18n="item.filterWarrantyExpired">已过保</option>
+            <option value="held" data-i18n="item.filterHeld">持有</option>
+            <option value="paused" data-i18n="item.filterPaused">暂离</option>
+            <option value="removed" data-i18n="item.filterRemoved">移除</option>
         </select>
         <select id="filter-category" onchange="setAllItemsCategory(this.value)" class="filter-select">
-            <option value="">全部分类</option>
+            <option value="" data-i18n="item.catAll">全部分类</option>
         </select>
         <select id="filter-sort" onchange="setAllItemsSort(this.value)" class="filter-select">
-            <option value="default">默认</option>
-            <option value="purchase-desc">购买日期</option>
-            <option value="price">价格</option>
-            <option value="name">名称</option>
-            <option value="expiry">过期倒计时</option>
+            <option value="default" data-i18n="item.sortDefault">默认</option>
+            <option value="purchase-desc" data-i18n="item.sortPurchase">购买日期</option>
+            <option value="price" data-i18n="item.sortPrice">价格</option>
+            <option value="name" data-i18n="item.sortName">名称</option>
+            <option value="expiry" data-i18n="item.sortExpiry">过期倒计时</option>
         </select>
         <button class="dir-toggle" id="sort-dir-btn" onclick="toggleSortDir()" title="切换排序方向">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
@@ -373,7 +376,7 @@
                     <img id="gift-image-preview-0" class="image-preview" style="display:none;">
                     <div class="upload-placeholder" id="gift-upload-placeholder-0" onclick="triggerGiftUpload(0)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        <span>上传</span>
+                        <span data-i18n="item.upload">上传</span>
                     </div>
                     <div class="image-remove-btn" id="gift-image-remove-0" onclick="removeGiftPhoto(0, event)" style="display:none;">×</div>
                 </div>
@@ -382,7 +385,7 @@
                     <img id="gift-image-preview-1" class="image-preview" style="display:none;">
                     <div class="upload-placeholder" id="gift-upload-placeholder-1" onclick="triggerGiftUpload(1)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        <span>上传</span>
+                        <span data-i18n="item.upload">上传</span>
                     </div>
                     <div class="image-remove-btn" id="gift-image-remove-1" onclick="removeGiftPhoto(1, event)" style="display:none;">×</div>
                 </div>
@@ -391,7 +394,7 @@
                     <img id="gift-image-preview-2" class="image-preview" style="display:none;">
                     <div class="upload-placeholder" id="gift-upload-placeholder-2" onclick="triggerGiftUpload(2)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        <span>上传</span>
+                        <span data-i18n="item.upload">上传</span>
                     </div>
                     <div class="image-remove-btn" id="gift-image-remove-2" onclick="removeGiftPhoto(2, event)" style="display:none;">×</div>
                 </div>
@@ -489,7 +492,7 @@
                     <img id="event-image-preview-0" class="image-preview" style="display:none;">
                     <div class="upload-placeholder" id="event-upload-placeholder-0" onclick="triggerEventUpload(0)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        <span>上传</span>
+                        <span data-i18n="item.upload">上传</span>
                     </div>
                     <div class="image-remove-btn" id="event-image-remove-0" onclick="removeEventPhoto(0, event)" style="display:none;">×</div>
                 </div>
@@ -498,7 +501,7 @@
                     <img id="event-image-preview-1" class="image-preview" style="display:none;">
                     <div class="upload-placeholder" id="event-upload-placeholder-1" onclick="triggerEventUpload(1)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        <span>上传</span>
+                        <span data-i18n="item.upload">上传</span>
                     </div>
                     <div class="image-remove-btn" id="event-image-remove-1" onclick="removeEventPhoto(1, event)" style="display:none;">×</div>
                 </div>
@@ -507,7 +510,7 @@
                     <img id="event-image-preview-2" class="image-preview" style="display:none;">
                     <div class="upload-placeholder" id="event-upload-placeholder-2" onclick="triggerEventUpload(2)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        <span>上传</span>
+                        <span data-i18n="item.upload">上传</span>
                     </div>
                     <div class="image-remove-btn" id="event-image-remove-2" onclick="removeEventPhoto(2, event)" style="display:none;">×</div>
                 </div>
@@ -596,7 +599,7 @@
     </div>
     <!-- 接下来 7 天 -->
     <div id="upcoming-7days-card" class="upcoming-7days-card">
-        <div class="upcoming-7days-title">📅 接下来 7 天</div>
+        <div class="upcoming-7days-title">📅 <span data-i18n="date.next7">接下来 7 天</span></div>
         <div id="upcoming-7days-list"></div>
     </div>
     <div id="important-list-view" style="display:none;">
@@ -696,11 +699,20 @@
 <!-- ============ 16. 书本详情（只读版） ============ -->
 <div id="page-book-view" class="page">
     <div class="page-top-bar">
-        <span onclick="switchPage('page-book-list')" class="back-arrow">←</span>
-        <h3>书本详情</h3>
-        <span onclick="editBookFromView()" style="margin-left:auto; color:var(--primary); cursor:pointer; padding:0 10px; display:inline-flex;">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        </span>
+        <!-- 改成了返回主页 -->
+        <span onclick="switchPage('page-home')" class="back-arrow">←</span>
+        <h3 data-i18n="book.viewTitle">书本详情</h3>
+        
+        <!-- 右侧操作区 -->
+        <div style="margin-left:auto; display:flex; align-items:center; gap:15px;">
+            <!-- 新增的“全部图书”按钮 -->
+            <span onclick="switchPage('page-book-list')" style="color:var(--primary); cursor:pointer; font-size:14px; font-weight:bold;" data-i18n="book.allBooks">全部图书</span>
+            
+            <!-- 原有的编辑按钮 -->
+            <span onclick="editBookFromView()" style="color:var(--primary); cursor:pointer; display:inline-flex;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </span>
+        </div>
     </div>
     <div id="book-view-content"></div>
 </div>
@@ -804,6 +816,7 @@
             <select class="setting-input" id="setting-lang" onchange="saveSetting('lang', this.value)">
                 <option value="zh-CN">简体中文</option>
                 <option value="en">English</option>
+                <option value="de">Deutsch</option>
             </select>
         </div>
         <div class="setting-row">
@@ -982,19 +995,19 @@
 <nav class="bottom-nav">
     <div class="nav-item active" id="nav-home" onclick="switchPage('page-home')">
         <span class="nav-icon" id="nav-icon-home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1V9.5z"/></svg></span>
-        <span>主页</span>
+        <span data-i18n="nav.home">主页</span>
     </div>
     <div class="nav-item" id="nav-all-items" onclick="switchPage('page-all-items')">
         <span class="nav-icon" id="nav-icon-items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
-        <span>全部物品</span>
+        <span data-i18n="nav.items">全部物品</span>
     </div>
     <div class="nav-item" id="nav-gift" onclick="switchPage('page-gift-record')">
         <span class="nav-icon" id="nav-icon-gift"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg></span>
-        <span>随礼记录</span>
+        <span data-i18n="nav.gift">随礼记录</span>
     </div>
     <div class="nav-item" id="nav-important" onclick="switchPage('page-important-dates')">
         <span class="nav-icon" id="nav-icon-important"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-        <span>重要日期</span>
+        <span data-i18n="nav.important">重要日期</span>
     </div>
 </nav>
 

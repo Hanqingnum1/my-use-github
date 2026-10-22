@@ -1,31 +1,3 @@
-// 记录当前页面，以及页面之间的父子层级（用于边缘滑动返回）
-let currentPageId = 'page-home';
-let isRenderingHistory = false; // 标记是否正在由滑动触发的渲染
-
-const parentMap = {
-    'page-home': null,
-    'page-all-items': 'page-home',
-    'page-gift-record': 'page-home',
-    'page-important-dates': 'page-home',
-    'page-book-list': 'page-home',
-    'page-item-distribution': 'page-all-items',
-    'page-gift-distribution': 'page-gift-record',
-    'page-add': 'page-all-items',
-    'page-add-gift': 'page-gift-record',
-    'page-gift-detail': 'page-gift-record',
-    'page-add-event': 'page-gift-detail',
-    'page-event-detail': 'page-gift-detail',
-    'page-add-important': 'page-important-dates',
-    'page-important-detail': 'page-important-dates',
-    'page-book-detail': 'page-book-list',
-    'page-book-view': 'page-book-list',
-    'page-diary-edit': 'page-important-dates',
-    'page-profile': 'page-home',
-    'page-theme': 'page-home',
-    'page-backup': 'page-home',
-    'page-lock': 'page-home',
-    'page-about': 'page-home'
-};
 // ================= 全局变量 =================
 let currentInputId = null;
 let selectedYear = null, selectedMonth = null, selectedDay = null;
@@ -830,27 +802,6 @@ function applyLanguage() {
 
 // ================= 页面切换 =================
 function switchPage(pageId) {
-    // ========= 边缘滑动返回拦截逻辑 =========
-    if (!isRenderingHistory) {
-        if (pageId === currentPageId) return; // 如果是当前页面，不处理
-
-        // 判断是不是“返回上一级”
-        if (parentMap[currentPageId] === pageId) {
-            window.history.back(); // 触发系统回退，交给 popstate 处理
-            return; // 直接中止，不执行后面的渲染
-        } else {
-            // 如果是平级的主页面互相切换（四大底部导航），用 replaceState 覆盖历史，不产生堆栈
-            const isMain = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates', 'page-book-list'].includes(pageId);
-            if (isMain && currentPageId === 'page-home') {
-                window.history.replaceState({ page: pageId }, '');
-            } else {
-                // 进入更深层的页面，压入历史栈
-                window.history.pushState({ page: pageId }, '');
-            }
-        }
-    }
-    currentPageId = pageId; // 更新当前页面
-    // =======================================
     // 底部导航只在4个主页面显示
     const mainPages = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates'];
     const nav = document.querySelector('.bottom-nav');
@@ -4188,25 +4139,28 @@ function deleteDiary() {
     setTimeout(() => openDiaryPanel(diaryPanelDate), 150);
 }
 
-// ================= 左右滑动切换四大主页 =================
+// ================= 纯净版：四大主页左右滑动 =================
 const swipePages = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates'];
 let swipeStartX = 0;
 let swipeStartY = 0;
 
 document.addEventListener('touchstart', (e) => {
-    // 如果正在操作弹窗、侧边栏、或者长按，不触发滑动
+    // 如果你按到了底部导航栏、悬浮按钮，或者弹出层，就不记录滑动
+    if (e.target.closest('.bottom-nav') || e.target.closest('.floating-add-btn') || e.target.closest('.modal')) {
+        swipeStartX = -1;
+        return;
+    }
     if (document.getElementById('side-drawer').classList.contains('open')) return;
     if (document.getElementById('diary-panel').classList.contains('open')) return;
-    if (document.querySelector('.modal[style*="display: flex"]')) return;
 
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
 }, { passive: true });
 
 document.addEventListener('touchend', (e) => {
+    if (swipeStartX === -1) return; // 如果在导航栏点按，忽略
     if (document.getElementById('side-drawer').classList.contains('open')) return;
     if (document.getElementById('diary-panel').classList.contains('open')) return;
-    if (document.querySelector('.modal[style*="display: flex"]')) return;
 
     const swipeEndX = e.changedTouches[0].clientX;
     const swipeEndY = e.changedTouches[0].clientY;
@@ -4214,56 +4168,30 @@ document.addEventListener('touchend', (e) => {
     const deltaX = swipeEndX - swipeStartX;
     const deltaY = swipeEndY - swipeStartY;
 
-    // 只有横向滑动大于 70px，且横向幅度大于纵向幅度时，才认为是“左右滑动”
+    // 滑动距离大于 70px，且是横向滑动
     if (Math.abs(deltaX) > 70 && Math.abs(deltaX) > Math.abs(deltaY)) {
-        // 获取当前处于活动状态的主页
         const activePage = document.querySelector('.page.active');
         if (!activePage) return;
         
         const currentIndex = swipePages.indexOf(activePage.id);
-        // 如果当前页面不在这四个主页里（比如在添加物品页），就不触发滑动
         if (currentIndex === -1) return;
 
         if (deltaX < 0) {
-            // ============ 向左滑 ============
+            // 向左滑
             if (currentIndex < swipePages.length - 1) {
-                // 切换到下一个页面
                 switchPage(swipePages[currentIndex + 1]);
             } else if (activePage.id === 'page-important-dates') {
-                // 边界：如果在最后一个页面（重要日期）继续向左滑，打开日记面板
                 const d = new Date();
                 const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                // 如果当前已经有选中的日期，就打开选中的，否则打开今天的
-                const targetDate = diaryPanelDate || todayStr; 
-                openDiaryPanel(targetDate);
+                openDiaryPanel(diaryPanelDate || todayStr);
             }
         } else {
-            // ============ 向右滑 ============
+            // 向右滑
             if (currentIndex > 0) {
-                // 切换到上一个页面
                 switchPage(swipePages[currentIndex - 1]);
             } else if (activePage.id === 'page-home') {
-                // 边界：如果在第一个页面（主页）继续向右滑，打开设置抽屉
                 openDrawer();
             }
         }
     }
 }, { passive: true });
-
-// ================= 监听系统边缘滑动返回 =================
-window.addEventListener('popstate', function(e) {
-    isRenderingHistory = true; // 标记由历史记录触发
-    
-    if (e.state && e.state.page) {
-        // 如果系统记录的上一页有数据，就渲染那个页面
-        switchPage(e.state.page);
-    } else {
-        // 如果没有记录了，说明退到了最初，或者用户直接在主页滑动
-        if (currentPageId !== 'page-home') {
-            switchPage('page-home'); // 强行回到主页
-        }
-        // 注意：如果在主页继续滑，这里不做拦截，系统会默认退出软件，符合逻辑
-    }
-    
-    isRenderingHistory = false;
-});

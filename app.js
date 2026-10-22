@@ -42,6 +42,11 @@ let cropStartY = 0;
 // 日记/便签相关
 let diaryPanelDate = null;        // 当前日记面板对应的日期
 let currentDiaryType = '日记';     // 日记 or 便签
+let selectedCalDate = null;       // 日历当前选中日期
+let currentDiaryViewId = null;    // 日记/便签只读页的 ID
+let currentDiaryListType = '日记'; // 列表页当前类型
+let currentDiaryListDate = null;  // 列表页对应的日期
+let diaryEditSource = 'panel';    // 'panel' = 从侧边面板进入编辑；'list' = 从列表/只读页进入
 let currentDiaryTemplate = null;  // 当前选中的模板
 let editingDiaryId = null;        // 正在编辑的日记 ID
 let isLongPress = false;          // 长按标志
@@ -454,6 +459,8 @@ const I18N = {
         '日期错误': 'Date error',
         '内容不能为空': 'Content cannot be empty',
         '全部图书': 'All Books',
+        '篇': 'items',
+        '详情': 'Detail',
     },
     'de': {
         '我的生活': 'Mein Leben',
@@ -685,6 +692,8 @@ const I18N = {
         '日期错误': 'Datumsfehler',
         '内容不能为空': 'Inhalt darf nicht leer sein',
         '全部图书': 'Alle Bücher',
+        '篇': 'Einträge',
+        '详情': 'Detail',
     }
 };
 
@@ -850,7 +859,7 @@ function switchPage(pageId) {
         } else if (pageId === 'page-book-list') {
             document.getElementById('nav-home').classList.add('active');
             renderBookList();
-        } else if (['page-add','page-add-gift','page-gift-detail','page-add-event','page-add-important','page-important-detail','page-profile','page-theme','page-backup','page-lock','page-about','page-event-detail','page-diary-edit','page-book-detail','page-book-view'].includes(pageId)) {
+        } else if (['page-add','page-add-gift','page-gift-detail','page-add-event','page-add-important','page-important-detail','page-profile','page-theme','page-backup','page-lock','page-about','page-event-detail','page-diary-edit','page-diary-list','page-diary-view','page-book-detail','page-book-view'].includes(pageId)) {
             document.getElementById('nav-home').classList.add('active');
         }
         // 页面主题色
@@ -2665,6 +2674,7 @@ function changeMonth(delta) {
     calMonth += delta;
     if (calMonth < 1) { calMonth = 12; calYear--; }
     else if (calMonth > 12) { calMonth = 1; calYear++; }
+    selectedCalDate = null;
     document.getElementById('important-detail-card').style.display = 'none';
     renderCalendar();
 }
@@ -2706,7 +2716,8 @@ function renderCalendar() {
         const now = new Date();
         const isToday = (calYear === now.getFullYear() && calMonth === (now.getMonth() + 1) && d === now.getDate());
 
-        html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''} ${isToday ? 'is-today' : ''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
+        const isSelected = selectedCalDate === dateStr;
+        html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-date="${dateStr}" onclick="selectCalDay('${dateStr}')">
             <span class="cal-day">${d}</span>
             ${jieQiText ? `<span class="cal-holiday">${jieQiText}</span>` : (lunarText ? `<span class="cal-lunar">${lunarText}</span>` : '')}
             ${holiday ? `<span class="cal-holiday">${T(holiday)}</span>` : ''}
@@ -2728,7 +2739,7 @@ function renderCalendar() {
                 fired = true;
                 isLongPress = true;
                 if (navigator.vibrate) navigator.vibrate(30);
-                openDiaryPanel(dateStr);
+                longPressNewDiary(dateStr);
             }, 600);
         };
         const cancelPress = () => clearTimeout(longPressTimer);
@@ -2806,13 +2817,24 @@ function selectCalDay(dateStr) {
     const sel = window.getSelection && window.getSelection();
     if (sel) sel.removeAllRanges();
     if (isLongPress) { isLongPress = false; return; }
+
+    selectedCalDate = dateStr;
+    renderCalendar();
+
     const detail = document.getElementById('important-detail-card');
     const dates = getImportantDates().filter(d => d.date === dateStr);
     const diaries = getDiaries().filter(d => d.date === dateStr);
+    const dayDiaries = diaries.filter(d => d.type === '日记');
+    const dayNotes = diaries.filter(d => d.type === '便签');
 
-    if (dates.length === 0 && diaries.length === 0) { detail.style.display = 'none'; return; }
+    if (dates.length === 0 && diaries.length === 0) {
+        detail.style.display = 'none';
+        return;
+    }
 
     let html = '';
+
+    // 重要日期
     if (dates.length > 0) {
         html += `<div class="cal-detail-section">📌 ${T('重要事件')}</div>`;
         dates.forEach(d => {
@@ -2825,26 +2847,38 @@ function selectCalDay(dateStr) {
             </div>`;
         });
     }
-    if (diaries.length > 0) {
+
+    // 日记 / 便签 概览
+    if (dayDiaries.length > 0 || dayNotes.length > 0) {
         html += `<div class="cal-detail-section">📔 ${T('日记 / 便签')}</div>`;
-        diaries.sort((a, b) => b.createdAt - a.createdAt);
-        diaries.forEach(d => {
-            const icon = d.type === '日记' ? '📔' : '📝';
-            const time = new Date(d.createdAt);
-            const timeStr = `${String(time.getHours()).padStart(2,'0')}:${String(time.getMinutes()).padStart(2,'0')}`;
-            html += `<div class="diary-card" onclick="editDiary(${d.id})">
-                <div class="diary-card-header">
-                    <span class="diary-card-type">${icon} ${d.type === '日记' ? T('日记') : T('便签')}</span>
-                    <span class="diary-card-time">${timeStr}</span>
-                </div>
-                ${d.title ? `<div class="diary-card-title">${d.title}</div>` : ''}
-                <div class="diary-card-content">${(d.content || '').replace(/</g,'&lt;')}</div>
+        const both = dayDiaries.length > 0 && dayNotes.length > 0;
+        html += `<div class="diary-overview-grid">`;
+
+        if (dayDiaries.length > 0) {
+            const preview = both ? '' : (dayDiaries[0].content || '').replace(/[□✓\n\r]/g, ' ').trim().slice(0, 40);
+            html += `<div class="diary-overview-card diary ${both ? '' : 'full'}" onclick="openDiaryList('${dateStr}', '日记')">
+                <div class="diary-overview-header">📔 ${T('日记')}</div>
+                <div class="diary-overview-count">${dayDiaries.length}<small>${T('篇')}</small></div>
+                ${preview ? `<div class="diary-overview-preview">${preview}</div>` : ''}
             </div>`;
-        });
+        }
+
+        if (dayNotes.length > 0) {
+            const firstTitle = both ? '' : (dayNotes[0].title || (dayNotes[0].content || '').slice(0, 20));
+            html += `<div class="diary-overview-card note ${both ? '' : 'full'}" onclick="openDiaryList('${dateStr}', '便签')">
+                <div class="diary-overview-header">📝 ${T('便签')}</div>
+                <div class="diary-overview-count">${dayNotes.length}<small>${T('篇')}</small></div>
+                ${firstTitle ? `<div class="diary-overview-preview">${firstTitle}</div>` : ''}
+            </div>`;
+        }
+
+        html += `</div>`;
     }
+
     detail.innerHTML = html;
     detail.style.display = 'block';
-        // 给详情卡片加长按删除
+
+    // 重要日期卡片长按删除
     detail.querySelectorAll('.important-card').forEach(card => {
         const onclickAttr = card.getAttribute('onclick') || '';
         const m = onclickAttr.match(/showImportantDetail\((\d+)\)/);
@@ -2854,29 +2888,11 @@ function selectCalDay(dateStr) {
             const item = getImportantDates().find(d => d.id === id);
             if (!item) return;
             showConfirm(T('删除重要日期'), T('确定删除「{name}」吗？', { name: item.event }), () => {
-                let dates = getImportantDates().filter(d => d.id !== id);
-                localStorage.setItem('myImportantDates', JSON.stringify(dates));
+                let dates2 = getImportantDates().filter(d => d.id !== id);
+                localStorage.setItem('myImportantDates', JSON.stringify(dates2));
                 showToast(T('已删除'));
-                detail.style.display = 'none';
-                renderCalendar();
                 renderUpcomingDates();
                 renderUpcoming7Days();
-            });
-        });
-    });
-        // 给日记卡片加长按删除
-    detail.querySelectorAll('.diary-card').forEach(card => {
-        const onclickAttr = card.getAttribute('onclick') || '';
-        const m = onclickAttr.match(/editDiary\((\d+)\)/);
-        if (!m) return;
-        const id = parseInt(m[1]);
-        bindLongPress(card, () => {
-            const d = getDiaries().find(x => x.id === id);
-            if (!d) return;
-            showConfirm(T('删除日记'), T('确定删除这条{type}吗？', { type: T(d.type) }), () => {
-                let diaries = getDiaries().filter(x => x.id !== id);
-                saveDiaries(diaries);
-                showToast(T('已删除'));
                 selectCalDay(dateStr);
             });
         });
@@ -2886,7 +2902,6 @@ function selectCalDay(dateStr) {
 function backToCalendar() {
     document.getElementById('calendar-view').style.display = 'block';
     document.getElementById('important-list-view').style.display = 'none';
-    document.getElementById('important-detail-card').style.display = 'none';
     importantViewMode = 'calendar';
     renderCalendar();
 }
@@ -3762,10 +3777,12 @@ window.addEventListener('load', () => {
 let unlockPatternDrawing = false;
 let unlockPatternSelected = [];
 let unlockPatternPoints = [];
+let lockoutInterval = null; // 用于倒计时刷新的定时器
 
 function checkAppLock() {
     const l = getLockSettings();
     const overlay = document.getElementById('unlock-overlay');
+    
     if (!l.type) {
         overlay.style.display = 'none';
         return;
@@ -3777,7 +3794,17 @@ function checkAppLock() {
     document.getElementById('unlock-password-area').style.display = 'none';
     document.getElementById('unlock-fingerprint-area').style.display = 'none';
     document.getElementById('unlock-pattern-area').style.display = 'none';
+    const lockoutMsg = document.getElementById('lockout-msg');
+    lockoutMsg.style.display = 'none';
+    clearInterval(lockoutInterval);
 
+    // 检查是否在锁定期内
+    if (l.lockUntil && Date.now() < l.lockUntil) {
+        startLockoutTimer(l.lockUntil);
+        return;
+    }
+
+    // 正常显示对应的解锁方式
     if (l.type === 'password') {
         document.getElementById('unlock-password-area').style.display = 'block';
         document.getElementById('unlock-pwd-input').value = '';
@@ -3790,15 +3817,79 @@ function checkAppLock() {
     }
 }
 
+// 锁定倒计时显示逻辑
+function startLockoutTimer(until) {
+    const lockoutMsg = document.getElementById('lockout-msg');
+    lockoutMsg.style.display = 'block';
+
+    const update = () => {
+        const remain = Math.ceil((until - Date.now()) / 1000);
+        if (remain <= 0) {
+            clearInterval(lockoutInterval);
+            checkAppLock(); // 时间到了，重新检查，恢复输入
+        } else {
+            const m = Math.floor(remain / 60);
+            const s = remain % 60;
+            lockoutMsg.innerText = `尝试次数过多，请等待 ${m}分${s}秒 后重试`;
+        }
+    };
+    update(); // 立即执行一次
+    lockoutInterval = setInterval(update, 1000);
+}
+
+// 统一的密码/图形验证失败处理
+function handleUnlockFail() {
+    const l = getLockSettings();
+    l.failCount = (l.failCount || 0) + 1; // 累加错误次数
+    
+    let lockTimeMs = 0;
+    
+    // 规则：累计 8 次错误（即超过 7 次）锁 7 分钟
+    if (l.failCount === 8) {
+        lockTimeMs = 7 * 60 * 1000;
+        l.lockUntil = Date.now() + lockTimeMs;
+        showToast('错误次数过多，锁定 7 分钟', 'error');
+    } 
+    // 规则：累计 11 次错误（即总共试了 10 次都是错的，再错第 11 次）锁 1 小时
+    else if (l.failCount >= 11) {
+        lockTimeMs = 60 * 60 * 1000;
+        l.lockUntil = Date.now() + lockTimeMs;
+        showToast('错误次数过多，锁定 1 小时', 'error');
+    } 
+    // 正常提示错误
+    else {
+        showToast(`密码/图案错误，还可尝试 ${7 - l.failCount} 次`, 'error');
+    }
+    
+    localStorage.setItem('myLock', JSON.stringify(l));
+    
+    if (lockTimeMs > 0) {
+        // 如果触发了锁定，立即清空输入并显示倒计时
+        if (document.getElementById('unlock-pwd-input')) document.getElementById('unlock-pwd-input').value = '';
+        checkAppLock();
+    }
+}
+
+// 统一的解锁成功处理
+function handleUnlockSuccess() {
+    const l = getLockSettings();
+    l.failCount = 0; // 成功则清零
+    l.lockUntil = 0;
+    localStorage.setItem('myLock', JSON.stringify(l));
+    
+    document.getElementById('unlock-overlay').style.display = 'none';
+    clearInterval(lockoutInterval);
+}
+
 function verifyPassword() {
     const l = getLockSettings();
     const input = document.getElementById('unlock-pwd-input').value;
+    
     if (input === l.password) {
-        document.getElementById('unlock-overlay').style.display = 'none';
-        showToast(T('解锁成功'));
+        handleUnlockSuccess();
     } else {
-        showToast(T('密码错误'), 'error');
         document.getElementById('unlock-pwd-input').value = '';
+        handleUnlockFail();
     }
 }
 
@@ -3897,11 +3988,11 @@ function finishUnlockPattern() {
     const l = getLockSettings();
 
     if (patternStr === l.pattern) {
-        document.getElementById('unlock-overlay').style.display = 'none';
-        showToast(T('解锁成功'));
+        handleUnlockSuccess();
     } else {
         document.getElementById('unlock-pattern-hint').innerText = T('图案错误，请重试');
         setTimeout(() => { unlockPatternSelected = []; drawUnlockPattern(); document.getElementById('unlock-pattern-hint').innerText = ''; }, 800);
+        handleUnlockFail();
     }
 }
 
@@ -3975,6 +4066,165 @@ function getDiaries() {
 function saveDiaries(list) {
     localStorage.setItem('myDiaries', JSON.stringify(list));
 }
+// ===== 日记/便签：列表页、只读页、任务清单 =====
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function openDiaryList(dateStr, type) {
+    currentDiaryListDate = dateStr;
+    currentDiaryListType = type;
+    document.getElementById('diary-list-title').textContent = T(type);
+    renderDiaryList();
+    switchPage('page-diary-list');
+}
+
+function renderDiaryList() {
+    const container = document.getElementById('diary-list-content');
+    if (!container) return;
+    const list = getDiaries()
+        .filter(d => d.date === currentDiaryListDate && d.type === currentDiaryListType)
+        .sort((a, b) => b.createdAt - a.createdAt);
+
+    if (list.length === 0) {
+        container.innerHTML = `<div class="diary-list-empty">${T('这一天还没有记录')}</div>`;
+        return;
+    }
+    container.innerHTML = '';
+    list.forEach(d => {
+        const card = document.createElement('div');
+        card.className = 'diary-list-card' + (d.type === '便签' ? ' note' : '');
+        const icon = d.type === '日记' ? '📔' : '📝';
+        const time = new Date(d.createdAt);
+        const timeStr = `${String(time.getHours()).padStart(2,'0')}:${String(time.getMinutes()).padStart(2,'0')}`;
+        let preview = (d.content || '').replace(/^[□☑✓]\s*/gm, '').trim();
+        card.innerHTML = `
+            <div class="diary-list-card-header">
+                <span>${icon} ${T(d.type)}</span>
+                <span>${timeStr}</span>
+            </div>
+            ${d.title ? `<div class="diary-list-card-title">${escapeHtml(d.title)}</div>` : ''}
+            ${preview ? `<div class="diary-list-card-preview">${escapeHtml(preview)}</div>` : ''}
+        `;
+        card.onclick = () => showDiaryView(d.id);
+        container.appendChild(card);
+    });
+}
+
+function backToDiaryList() {
+    switchPage('page-diary-list');
+    setTimeout(() => renderDiaryList(), 30);
+}
+
+function showDiaryView(id) {
+    const d = getDiaries().find(x => x.id === id);
+    if (!d) return;
+    currentDiaryViewId = id;
+
+    const icon = d.type === '日记' ? '📔' : '📝';
+    const time = new Date(d.createdAt);
+    const timeStr = `${time.getFullYear()}-${String(time.getMonth()+1).padStart(2,'0')}-${String(time.getDate()).padStart(2,'0')} ${String(time.getHours()).padStart(2,'0')}:${String(time.getMinutes()).padStart(2,'0')}`;
+
+    document.getElementById('diary-view-content').innerHTML = `
+        <div class="card">
+            <div class="diary-view-meta">
+                <span>${icon} ${T(d.type)}</span>
+                <span>${timeStr}</span>
+            </div>
+            ${d.title ? `<div class="diary-view-title">${escapeHtml(d.title)}</div>` : ''}
+            ${renderDiaryViewBody(d)}
+        </div>
+    `;
+    switchPage('page-diary-view');
+}
+
+function renderDiaryViewBody(d) {
+    const content = d.content || '';
+    const lines = content.split('\n');
+    const hasTask = lines.some(l => /^[□☑✓]/.test(l));
+
+    if (!hasTask) {
+        return `<div class="diary-view-body">${escapeHtml(content)}</div>`;
+    }
+
+    let html = '';
+    lines.forEach((line, idx) => {
+        const m = line.match(/^([□☑✓])\s*(.*)$/);
+        if (m) {
+            const checked = m[1] !== '□';
+            const text = m[2] || '&nbsp;';
+            html += `<div class="diary-task-item ${checked ? 'checked' : ''}" data-line="${idx}" onclick="toggleDiaryTask(${idx})">
+                <div class="diary-task-box"></div>
+                <div class="diary-task-text">${m[2] ? escapeHtml(m[2]) : '&nbsp;'}</div>
+            </div>`;
+        } else if (line.trim()) {
+            html += `<div style="margin:6px 0; color:var(--text-sub); font-size:13px; white-space:pre-wrap;">${escapeHtml(line)}</div>`;
+        }
+    });
+    return html;
+}
+
+function toggleDiaryTask(lineIndex) {
+    const diaries = getDiaries();
+    const d = diaries.find(x => x.id === currentDiaryViewId);
+    if (!d) return;
+    const lines = (d.content || '').split('\n');
+    const line = lines[lineIndex];
+    if (!line) return;
+    const m = line.match(/^([□☑✓])(\s*)(.*)$/);
+    if (!m) return;
+    const newMark = m[1] === '□' ? '☑' : '□';
+    lines[lineIndex] = newMark + m[2] + m[3];
+    d.content = lines.join('\n');
+    saveDiaries(diaries);
+
+    const el = document.querySelector(`#diary-view-content .diary-task-item[data-line="${lineIndex}"]`);
+    if (el) el.classList.toggle('checked', newMark === '☑');
+}
+
+function editDiaryFromView() {
+    if (!currentDiaryViewId) return;
+    editDiary(currentDiaryViewId);
+}
+
+function deleteDiaryFromView() {
+    if (!currentDiaryViewId) return;
+    const d = getDiaries().find(x => x.id === currentDiaryViewId);
+    if (!d) return;
+    showConfirm(T('删除日记'), T('确定删除这条{type}吗？', { type: T(d.type) }), () => {
+        let list = getDiaries().filter(x => x.id !== currentDiaryViewId);
+        saveDiaries(list);
+        showToast(T('已删除'));
+        currentDiaryViewId = null;
+        switchPage('page-diary-list');
+        setTimeout(() => renderDiaryList(), 30);
+    });
+}
+
+function showTemplateModalFromList() {
+    diaryEditSource = 'list';
+    currentDiaryType = currentDiaryListType;
+    diaryPanelDate = currentDiaryListDate;
+    document.getElementById('type-chip-diary').classList.toggle('active', currentDiaryType === '日记');
+    document.getElementById('type-chip-note').classList.toggle('active', currentDiaryType === '便签');
+    renderTemplateGrid();
+    document.getElementById('template-modal').style.display = 'flex';
+}
+
+function longPressNewDiary(dateStr) {
+    isLongPress = false;  // 长按已触发，无需再拦截后续 selectCalDay
+    diaryPanelDate = dateStr;
+    diaryEditSource = 'calendar';
+    currentDiaryType = '日记';
+    document.getElementById('type-chip-diary').classList.add('active');
+    document.getElementById('type-chip-note').classList.remove('active');
+    renderTemplateGrid();
+    document.getElementById('template-modal').style.display = 'flex';
+}
 
 function openDiaryPanel(dateStr) {
     diaryPanelDate = dateStr;
@@ -4032,7 +4282,8 @@ function renderDiaryPanel(dateStr) {
 }
 
 function showTemplateModal() {
-    closeDiaryPanel();    // ← 加这一行
+    closeDiaryPanel();
+    diaryEditSource = 'panel';
     currentDiaryType = '日记';
     document.getElementById('type-chip-diary').classList.add('active');
     document.getElementById('type-chip-note').classList.remove('active');
@@ -4077,20 +4328,25 @@ function selectTemplate(templateId) {
     document.getElementById('diary-delete-btn').style.display = 'none';
 
     closeTemplateModal();
-    closeDiaryPanel();
+    document.getElementById('diary-panel').classList.remove('open');
+    document.getElementById('diary-panel-overlay').classList.remove('open');
     switchPage('page-diary-edit');
 }
 
 function editDiary(id) {
     const d = getDiaries().find(x => x.id === id);
     if (!d) return;
+    const activePage = document.querySelector('.page.active')?.id;
+    diaryEditSource = (activePage === 'page-diary-view' || activePage === 'page-diary-list') ? 'list' : 'panel';
     editingDiaryId = id;
+    diaryPanelDate = d.date;
     currentDiaryType = d.type;
     document.getElementById('diary-edit-title').textContent = d.type === '日记' ? T('编辑日记') : T('编辑便签');
     document.getElementById('diary-title-input').value = d.title || '';
     document.getElementById('diary-content-input').value = d.content || '';
     document.getElementById('diary-delete-btn').style.display = 'block';
-    closeDiaryPanel();
+    document.getElementById('diary-panel').classList.remove('open');
+    document.getElementById('diary-panel-overlay').classList.remove('open');
     switchPage('page-diary-edit');
 }
 
@@ -4101,13 +4357,18 @@ function saveDiary() {
     if (!title && !content.trim()) { showToast(T('内容不能为空'), 'error'); return; }
 
     let diaries = getDiaries();
+    let savedId;
+    const wasEditing = !!editingDiaryId;
+
     if (editingDiaryId) {
+        savedId = editingDiaryId;
         const idx = diaries.findIndex(d => d.id === editingDiaryId);
         if (idx !== -1) diaries[idx] = { ...diaries[idx], title, content };
         showToast(T('修改成功！'));
     } else {
+        savedId = Date.now();
         diaries.push({
-            id: Date.now(),
+            id: savedId,
             date: diaryPanelDate,
             type: currentDiaryType,
             title,
@@ -4119,14 +4380,42 @@ function saveDiary() {
     saveDiaries(diaries);
     editingDiaryId = null;
 
-    switchPage('page-important-dates');
-    setTimeout(() => openDiaryPanel(diaryPanelDate), 150);
+    if (diaryEditSource === 'list') {
+        if (wasEditing) {
+            showDiaryView(savedId);
+        } else {
+            currentDiaryListType = currentDiaryType;
+            switchPage('page-diary-list');
+            setTimeout(() => renderDiaryList(), 30);
+        }
+    } else if (diaryEditSource === 'calendar') {
+        switchPage('page-important-dates');
+        setTimeout(() => selectCalDay(diaryPanelDate), 100);
+    } else {
+        switchPage('page-important-dates');
+        setTimeout(() => openDiaryPanel(diaryPanelDate), 150);
+    }
 }
 
 function cancelDiaryEdit() {
+    const wasEditing = !!editingDiaryId;
+    const editId = editingDiaryId;
     editingDiaryId = null;
-    switchPage('page-important-dates');
-    setTimeout(() => { if (diaryPanelDate) openDiaryPanel(diaryPanelDate); }, 150);
+
+    if (diaryEditSource === 'list') {
+        if (wasEditing) {
+            showDiaryView(editId);
+        } else {
+            switchPage('page-diary-list');
+            setTimeout(() => renderDiaryList(), 30);
+        }
+    } else if (diaryEditSource === 'calendar') {
+        switchPage('page-important-dates');
+        setTimeout(() => selectCalDay(diaryPanelDate), 100);
+    } else {
+        switchPage('page-important-dates');
+        setTimeout(() => { if (diaryPanelDate) openDiaryPanel(diaryPanelDate); }, 150);
+    }
 }
 
 function deleteDiary() {
@@ -4135,8 +4424,18 @@ function deleteDiary() {
     let diaries = getDiaries().filter(d => d.id !== editingDiaryId);
     saveDiaries(diaries);
     editingDiaryId = null;
-    switchPage('page-important-dates');
-    setTimeout(() => openDiaryPanel(diaryPanelDate), 150);
+
+    if (diaryEditSource === 'list') {
+        currentDiaryViewId = null;
+        switchPage('page-diary-list');
+        setTimeout(() => renderDiaryList(), 30);
+    } else if (diaryEditSource === 'calendar') {
+        switchPage('page-important-dates');
+        setTimeout(() => selectCalDay(diaryPanelDate), 100);
+    } else {
+        switchPage('page-important-dates');
+        setTimeout(() => openDiaryPanel(diaryPanelDate), 150);
+    }
 }
 
 // ================= 纯净版：四大主页左右滑动 =================

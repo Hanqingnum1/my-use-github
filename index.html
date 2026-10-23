@@ -577,8 +577,8 @@
 <!-- ============ 9. 重要日期详情 ============ -->
 <div id="page-important-detail" class="page">
     <div class="page-top-bar">
-        <span onclick="switchPage('page-important-dates')" class="back-arrow">←</span>
-        <h3>重要日期详情</h3>
+        <span onclick="backFromImportantDetail()" class="back-arrow">←</span>
+        <h3>重要日期</h3>
         <span onclick="deleteImportantDate()" style="margin-left:auto; color:#d98880; cursor:pointer; display:inline-flex;">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
         </span>
@@ -675,9 +675,12 @@
             <span onclick="switchPage('page-home')" class="back-arrow">←</span>
             <h3 class="page-main-title" style="margin-left:4px;">我的书本</h3>
         </div>
-        <span onclick="toggleBookSearchBar()" style="cursor:pointer; color:var(--primary); display:inline-flex;">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </span>
+        <div style="display:inline-flex; align-items:center; gap:14px;">
+            <span id="multi-select-btn-books" onclick="toggleMultiSelect('books')" style="cursor:pointer; color:var(--primary); font-size:14px; font-weight:600;">选择</span>
+            <span onclick="toggleBookSearchBar()" style="cursor:pointer; color:var(--primary); display:inline-flex;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+        </div>
     </div>
 
     <div id="book-search-bar-wrapper" style="display:none; margin-bottom:12px;">
@@ -757,7 +760,7 @@
 <!-- ============ 日记/便签列表页 ============ -->
 <div id="page-diary-list" class="page">
     <div class="page-top-bar">
-        <span onclick="switchPage('page-important-dates')" class="back-arrow">←</span>
+        <span onclick="backFromImportantDetail()" class="back-arrow">←</span>
         <h3 id="diary-list-title">日记</h3>
         <div style="margin-left:auto; display:flex; align-items:center; gap:14px;">
             <span id="multi-select-btn-diary" onclick="toggleMultiSelect('diary')" style="cursor:pointer; color:var(--primary); font-size:14px; font-weight:600;">选择</span>

@@ -1,4 +1,13 @@
 // ================= 全局变量 =================
+// 批量多选（全局唯一声明，带 books）
+let multiSelectMode = { items: false, gift: false, important: false, diary: false, books: false };
+let multiSelectedIds = {
+    items: new Set(),
+    gift: new Set(),
+    important: new Set(),
+    diary: new Set(),
+    books: new Set()
+};
 let currentInputId = null;
 let selectedYear = null, selectedMonth = null, selectedDay = null;
 let pickerStep = 'year';
@@ -17,6 +26,7 @@ let importantSearchKeyword = '';
 let selectedImportantLevel = '提醒';
 let editingImportantId = null;
 let currentImportantDetailId = null;
+let importantDetailSource = null;
 let selectedEventChipName = null;
 let selectedGiftType = '随礼'; // 当前选中的随礼类型
 let currentEventId = null;   // 当前查看的事件 ID
@@ -88,14 +98,6 @@ let currentBookViewId = null;
 let iconSrcImage = null;
 let selectedIconCells = []; // [{row, col, num}]
 
-// 批量多选
-let multiSelectMode = { items: false, gift: false, important: false, diary: false };
-let multiSelectedIds = {
-    items: new Set(),
-    gift: new Set(),
-    important: new Set(),
-    diary: new Set()
-};
 
 const nationalHolidays = {
     '01-01': '元旦', '02-14': '情人节', '03-08': '妇女节', '03-12': '植树节',
@@ -836,7 +838,7 @@ function applyLanguage() {
 function switchPage(pageId) {
     // 切换页面时，退出所有多选模式
     if (document.body.classList.contains('multi-select-mode')) {
-        ['items', 'gift', 'important', 'diary'].forEach(t => {
+        ['items', 'gift', 'important', 'diary', 'books'].forEach(t => {
             if (multiSelectMode[t]) exitMultiSelect(t);
         });
     }
@@ -2652,6 +2654,8 @@ function showImportantDetail(id) {
     const item = getImportantDates().find(d => d.id === id);
     if (!item) return;
     currentImportantDetailId = id;
+    const activePage = document.querySelector('.page.active')?.id;
+    importantDetailSource = activePage === 'page-home' ? 'page-home' : 'important-dates';
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const days = Math.ceil((new Date(item.date) - today) / (1000 * 60 * 60 * 24));
     let dayText = days === 0 ? T('今天') : (days > 0 ? T('{n}天后', { n: days }) : T('已过去{n}天', { n: Math.abs(days) }));
@@ -2664,6 +2668,14 @@ function showImportantDetail(id) {
             <div class="important-card-date" style="margin-top:10px;">📅 ${T('日期')}：${item.date} (${dayText})</div>
         </div>`;
     switchPage('page-important-detail');
+}
+
+function backFromImportantDetail() {
+    if (typeof importantDetailSource !== 'undefined' && importantDetailSource === 'page-home') {
+        switchPage('page-home');
+    } else {
+        switchPage('page-important-dates');
+    }
 }
 
 function editImportantDate() {
@@ -3369,7 +3381,10 @@ function renderBookList() {
     }
 
     container.innerHTML = '';
-    books.forEach(book => {
+        books.forEach(book => {
+        const isMulti = multiSelectMode.books;
+        const isChecked = isMulti && multiSelectedIds.books.has(book.id);
+
         const total = book.totalPages || 0;
         const cur = book.currentPages || 0;
         const percent = total > 0 ? Math.min(100, Math.round((cur / total) * 100)) : 0;
@@ -3379,14 +3394,20 @@ function renderBookList() {
         const div = document.createElement('div');
         div.className = bookView === 'tile' ? 'item-tile' : 'item-card-new';
         div.style.position = 'relative';
+        if (isChecked) div.classList.add('multi-checked');
+        div.setAttribute('data-multi-id', `books-${book.id}`);
 
-        // 勾选方块
-        const checkBox = `<div class="book-check ${book.isActive ? 'checked' : ''}" onclick="toggleBookActive(${book.id}, event)">
+        // 原有的阅读勾选（多选模式下隐藏，防止冲突）
+        const checkBox = isMulti ? '' : `<div class="book-check ${book.isActive ? 'checked' : ''}" onclick="toggleBookActive(${book.id}, event)">
             ${book.isActive ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
         </div>`;
 
+        // 多选的圆圈
+        const multiBox = isMulti ? `<div class="multi-checkbox ${isChecked ? 'checked' : ''}"></div>` : '';
+
         if (bookView === 'tile') {
             div.innerHTML = `
+                ${multiBox}
                 ${checkBox}
                 <div class="book-cover-tile">📖</div>
                 <div class="tile-name">${book.name}</div>
@@ -3397,6 +3418,7 @@ function renderBookList() {
             `;
         } else {
             div.innerHTML = `
+                ${multiBox}
                 <div class="book-cover">📖</div>
                 <div class="item-info-new">
                     <div class="item-name-new">${book.name}</div>
@@ -3410,21 +3432,23 @@ function renderBookList() {
             `;
         }
 
-        // 点击卡片本身（除勾选外）→ 进只读详情
-        div.addEventListener('click', (e) => {
-            if (e.target.classList.contains('book-check') || e.target.closest('.book-check')) return;
-            showBookView(book.id);
-        });
-                // 长按删除
-        bindLongPress(div, () => {
-            showConfirm(T('删除书本'), T('确定删除「{name}」吗？', { name: book.name }), () => {
-                let books = getBooks().filter(b => b.id !== book.id);
-                localStorage.setItem('myBooks', JSON.stringify(books));
-                showToast(T('已删除'));
-                renderBookList();
-                renderBookProgress();
+        if (isMulti) {
+            div.onclick = () => toggleMultiSelected('books', book.id);
+        } else {
+            div.addEventListener('click', (e) => {
+                if (e.target.classList.contains('book-check') || e.target.closest('.book-check')) return;
+                showBookView(book.id);
             });
-        });
+            bindLongPress(div, () => {
+                showConfirm(T('删除书本'), T('确定删除「{name}」吗？', { name: book.name }), () => {
+                    let books2 = getBooks().filter(b => b.id !== book.id);
+                    localStorage.setItem('myBooks', JSON.stringify(books2));
+                    showToast(T('已删除'));
+                    renderBookList();
+                    renderBookProgress();
+                });
+            });
+        }
 
         container.appendChild(div);
     });
@@ -3897,6 +3921,7 @@ function renderMultiList(type) {
     else if (type === 'gift') renderGiftList();
     else if (type === 'important') renderImportantList();
     else if (type === 'diary') renderDiaryList();
+    else if (type === 'books') renderBookList();
 }
 
 function batchDeleteSelected(type) {
@@ -3921,8 +3946,13 @@ function batchDeleteSelected(type) {
         } else if (type === 'diary') {
             const list = getDiaries().filter(d => !ids.includes(d.id));
             saveDiaries(list);
+        } else if (type === 'books') {
+            const books = getBooks().filter(b => !ids.includes(b.id));
+            localStorage.setItem('myBooks', JSON.stringify(books));
+            renderBookProgress();
         }
 
+        // 下面这些操作必须在 showConfirm 的括号里面！
         showToast(T('已删除'));
         exitMultiSelect(type);
         renderMultiList(type);

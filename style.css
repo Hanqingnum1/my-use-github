@@ -35,13 +35,11 @@ body {
 @keyframes slideUpFade {
     from {
         opacity: 0;
-        position: relative;
-        top: 20px;
+        transform: translateY(20px);
     }
     to {
         opacity: 1;
-        position: relative;
-        top: 0;
+        transform: translateY(0);
     }
 }
 
@@ -281,8 +279,8 @@ input::placeholder { color: #bbb; }
 /* 抽屉 */
 .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0); z-index: 10000; pointer-events: none; transition: background 0.3s; }
 .drawer-overlay.open { background: rgba(0,0,0,0.4); pointer-events: auto; }
-.side-drawer { position: fixed; top: 0; left: 0; height: 100%; width: 50%; min-width: 260px; max-width: 320px; background: var(--card-bg); z-index: 10001; transform: translateX(-100%); transition: transform 0.3s ease; box-shadow: 4px 0 20px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
-.side-drawer.open { transform: translateX(0); }
+.side-drawer { position: fixed; top: 0; left: 0; height: 100%; width: 50%; min-width: 260px; max-width: 320px; background: var(--card-bg); z-index: 10001; transform: translateX(-100%); transition: transform 0.3s ease, visibility 0.3s; box-shadow: 4px 0 20px rgba(0,0,0,0.08); display: flex; flex-direction: column; pointer-events: none; visibility: hidden; }
+.side-drawer.open { transform: translateX(0); pointer-events: auto; visibility: visible; }
 .drawer-header { padding: 30px 20px 20px; background: linear-gradient(135deg, #f5b7b1, #d98880); color: white; }
 .drawer-avatar { width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; font-size: 30px; margin-bottom: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,0.6); }
 .drawer-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -402,11 +400,12 @@ body.dark-mode #pattern-canvas {
     position: fixed; top: 0; right: 0; height: 100%;
     width: 82%; max-width: 400px;
     background: var(--card-bg); z-index: 10011;
-    transform: translateX(100%); transition: transform 0.3s ease;
+    transform: translateX(100%); transition: transform 0.3s ease, visibility 0.3s;
     box-shadow: -4px 0 20px rgba(0,0,0,0.1);
     display: flex; flex-direction: column;
+    pointer-events: none; visibility: hidden;
 }
-.diary-panel.open { transform: translateX(0); }
+.diary-panel.open { transform: translateX(0); pointer-events: auto; visibility: visible; }
 
 .diary-panel-header {
     padding: 22px 20px;

@@ -2770,7 +2770,7 @@ function renderCalendar() {
         const now = new Date();
         const isToday = (calYear === now.getFullYear() && calMonth === (now.getMonth() + 1) && d === now.getDate());
 
-                const isSelected = selectedCalDate === dateStr;
+                const isSelected = selectedCalDate === dateStr && !isToday;
                 html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-date="${dateStr}">
             <span class="cal-day">${d}</span>
             ${jieQiText ? `<span class="cal-holiday">${jieQiText}</span>` : (lunarText ? `<span class="cal-lunar">${lunarText}</span>` : '')}
@@ -3409,7 +3409,10 @@ function renderBookList() {
         }
 
         // 点击卡片本身（除勾选外）→ 进只读详情
-        div.setAttribute('onclick', `showBookView(${book.id})`);
+        div.addEventListener('click', (e) => {
+            if (e.target.classList.contains('book-check') || e.target.closest('.book-check')) return;
+            showBookView(book.id);
+        });
                 // 长按删除
         bindLongPress(div, () => {
             showConfirm(T('删除书本'), T('确定删除「{name}」吗？', { name: book.name }), () => {
@@ -3739,30 +3742,45 @@ function showConfirm(title, message, onOk) {
 function bindLongPress(el, callback) {
     let timer = null;
     let fired = false;
+    let startX = 0, startY = 0;
 
     const start = (e) => {
         fired = false;
+        const p = e.touches ? e.touches[0] : e;
+        startX = p.clientX;
+        startY = p.clientY;
+        
+        clearTimeout(timer);
         timer = setTimeout(() => {
             fired = true;
             itemLongPressFired = true;
             if (navigator.vibrate) navigator.vibrate(30);
             callback();
-        }, 1000);
+        }, 600); // 从 1000ms 缩短到 600ms，反应更快
     };
+
+    const move = (e) => {
+        const p = e.touches ? e.touches[0] : e;
+        // 如果手指滑动超过 10px，取消长按（防止滚动列表时误触发）
+        if (Math.abs(p.clientX - startX) > 10 || Math.abs(p.clientY - startY) > 10) {
+            clearTimeout(timer);
+        }
+    };
+
     const cancel = () => {
         clearTimeout(timer);
-        timer = null;
     };
 
     el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: true });
     el.addEventListener('touchend', cancel);
-    el.addEventListener('touchmove', cancel);
     el.addEventListener('touchcancel', cancel);
     el.addEventListener('mousedown', start);
+    el.addEventListener('mousemove', move);
     el.addEventListener('mouseup', cancel);
     el.addEventListener('mouseleave', cancel);
 
-    // 长按触发后，阻止紧随的 click
+    // 长按触发后，阻止紧随的 click 事件（防止长按后弹出了删除框，结果又跳进了详情页）
     el.addEventListener('click', (e) => {
         if (fired) {
             e.stopPropagation();
@@ -3771,6 +3789,7 @@ function bindLongPress(el, callback) {
         }
     }, true);
 }
+
 function closeConfirm() {
     confirmCallback = null;
     document.getElementById('confirm-modal').style.display = 'none';
@@ -3819,14 +3838,17 @@ function exitMultiSelect(type) {
         const bar = document.getElementById('multi-select-bar');
         if (bar) bar.style.display = 'none';
     }
-    // 修复：重要日期退出多选时，无论如何切回日历视图
+    // 修改这里：取消多选后，只重新渲染当前的列表，不再强制切回日历视图
     if (type === 'important') {
-        document.getElementById('calendar-view').style.display = 'block';
-        document.getElementById('important-list-view').style.display = 'none';
-        document.getElementById('upcoming-7days-card').style.display = 'block';
-        importantViewMode = 'calendar';
-        renderCalendar();
-        renderUpcoming7Days();
+        if (importantViewMode === 'list') {
+            renderImportantList();
+        } else {
+            document.getElementById('calendar-view').style.display = 'block';
+            document.getElementById('important-list-view').style.display = 'none';
+            document.getElementById('upcoming-7days-card').style.display = 'block';
+            renderCalendar();
+            renderUpcoming7Days();
+        }
     }
 }
 

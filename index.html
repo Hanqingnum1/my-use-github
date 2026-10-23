@@ -414,8 +414,15 @@
 <div id="page-gift-detail" class="page">
     <div class="page-top-bar">
         <span onclick="switchPage('page-gift-record')" class="back-arrow">←</span>
+    <div class="page-top-bar">
+        <span onclick="switchPage('page-gift-record')" class="back-arrow">←</span>
         <h3 id="detail-person-name">张三</h3>
-        <span onclick="showAddEventPage()" style="margin-left:auto;font-size:28px;color:var(--primary);cursor:pointer;font-weight:bold;line-height:1;">+</span>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:14px;">
+            <span onclick="deleteGiftPerson()" style="color:#d98880; cursor:pointer; display:inline-flex;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+            </span>
+            <span onclick="showAddEventPage()" style="font-size:28px;color:var(--primary);cursor:pointer;font-weight:bold;line-height:1;">+</span>
+        </div>
     </div>
     <div id="gift-event-list"></div>
 </div>
@@ -425,6 +432,9 @@
     <div class="page-top-bar">
         <span onclick="switchPage('page-gift-detail')" class="back-arrow">←</span>
         <h3>事件详情</h3>
+        <span onclick="deleteGiftEvent()" style="margin-left:auto; color:#d98880; cursor:pointer; display:inline-flex;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </span>
     </div>
     <div id="event-detail-content"></div>
     <button class="btn-primary" onclick="editGiftEvent()">编辑</button>
@@ -571,6 +581,9 @@
     <div class="page-top-bar">
         <span onclick="switchPage('page-important-dates')" class="back-arrow">←</span>
         <h3>重要日期详情</h3>
+        <span onclick="deleteImportantDate()" style="margin-left:auto; color:#d98880; cursor:pointer; display:inline-flex;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </span>
     </div>
     <div id="important-detail-content"></div>
     <button class="btn-primary" onclick="editImportantDate()">编辑</button>
@@ -579,7 +592,6 @@
 <div id="page-important-dates" class="page">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:0 6px;">
         <h3 class="page-main-title">重要日期</h3>
-        <span id="multi-select-btn-important" onclick="toggleMultiSelect('important')" style="cursor:pointer; color:var(--primary); font-size:14px; font-weight:600;">选择</span>
     </div>
     <div id="calendar-view" class="card">
         <div class="cal-header">
@@ -610,7 +622,8 @@
         <div class="list-header">
             <span onclick="backToCalendar()" class="back-arrow">←</span>
             <h3 style="margin-left:10px;">重要日期</h3>
-            <input type="text" id="important-list-search" oninput="renderImportantList()" placeholder="搜索..." style="flex:1;margin-left:10px;padding:8px 12px;border-radius:10px;border:1px solid var(--divider);font-size:14px;background:var(--bg-color);color:var(--text-main);">
+            <span id="multi-select-btn-important" onclick="toggleMultiSelect('important')" style="cursor:pointer; color:var(--primary); font-size:14px; font-weight:600; margin-left:12px;">选择</span>
+            <input type="text" id="important-list-search" oninput="renderImportantList()" placeholder="搜索..." style="flex:1;margin-left:12px;padding:8px 12px;border-radius:10px;border:1px solid var(--divider);font-size:14px;background:var(--bg-color);color:var(--text-main);">
         </div>
         <div id="important-list-items"></div>
     </div>
@@ -709,12 +722,12 @@
         
         <!-- 右侧操作区 -->
         <div style="margin-left:auto; display:flex; align-items:center; gap:15px;">
-            <!-- 新增的“全部图书”按钮 -->
             <span onclick="switchPage('page-book-list')" style="color:var(--primary); cursor:pointer; font-size:14px; font-weight:bold;" data-i18n="book.allBooks">全部图书</span>
-            
-            <!-- 原有的编辑按钮 -->
             <span onclick="editBookFromView()" style="color:var(--primary); cursor:pointer; display:inline-flex;">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </span>
+            <span onclick="deleteBook()" style="color:#d98880; cursor:pointer; display:inline-flex;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
             </span>
         </div>
     </div>

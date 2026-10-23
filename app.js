@@ -491,6 +491,9 @@ const I18N = {
         '下次提醒': 'Next Reminder',
         '添加日期': 'Add Date',
         '下次：': 'Next: ',
+        '未结束': 'Ongoing',
+        '已结束': 'Ended',
+        '非常重要': 'Very Important',
     },
     'de': {
         '我的生活': 'Mein Leben',
@@ -740,6 +743,9 @@ const I18N = {
         '下次提醒': 'Nächste Erinnerung',
         '添加日期': 'Datum hinzufügen',
         '下次：': 'Nächstes: ',
+        '未结束': 'Laufend',
+        '已结束': 'Beendet',
+        '非常重要': 'Sehr wichtig',
     }
 };
 

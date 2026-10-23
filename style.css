@@ -179,7 +179,7 @@ input::placeholder { color: #bbb; }
 .level-btn.active { font-weight: bold; border-width: 2px; }
 .level-btn[data-level="提醒"].active { background: #f9d5cf; border-color: #e8a49b; color: #a05948; }
 .level-btn[data-level="重要"].active { background: #e8a49b; border-color: #c96a5a; color: #fff; }
-.level-btn[data-level="纪念"].active { background: #c96a5a; border-color: #a04435; color: #fff; }
+.level-btn[data-level="非常重要"].active { background: #c96a5a; border-color: #a04435; color: #fff; }
 
 /* 日历 */
 #calendar-view {
@@ -240,13 +240,13 @@ input::placeholder { color: #bbb; }
 }
 .important-card.level-提醒 { border-left: 4px solid #f9d5cf; background: #fffaf9; }
 .important-card.level-重要 { border-left: 4px solid #e8a49b; background: #fff5f2; }
-.important-card.level-纪念 { border-left: 4px solid #c96a5a; background: #fef1ed; }
+.important-card.level-非常重要 { border-left: 4px solid #c96a5a; background: #fef1ed; }
 .important-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .important-card-name { font-size: 15px; font-weight: bold; color: var(--text-main); }
 .important-card-level { font-size: 11px; padding: 2px 8px; border-radius: 8px; color: #fff; }
 .level-提醒 .important-card-level { background: #f9d5cf; color: #a05948; }
 .level-重要 .important-card-level { background: #e8a49b; color: #fff; }
-.level-纪念 .important-card-level { background: #c96a5a; color: #fff; }
+.level-非常重要 .important-card-level { background: #c96a5a; color: #fff; }
 .important-card-date { font-size: 13px; color: var(--text-sub); }
 
 /* 临近卡片 */
@@ -338,7 +338,7 @@ body.dark-mode .cal-cell { background: var(--card-bg); }
 body.dark-mode .cal-cell.has-event { background: #3a3438; }
 body.dark-mode .important-card.level-提醒 { background: #3a2828; }
 body.dark-mode .important-card.level-重要 { background: #3a2424; }
-body.dark-mode .important-card.level-纪念 { background: #322838; }
+body.dark-mode .important-card.level-非常重要 { background: #322838; }
 body.dark-mode .upcoming-card {
     background: linear-gradient(135deg, #3a3428, #4a3e28);
 }

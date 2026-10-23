@@ -182,7 +182,13 @@ input::placeholder { color: #bbb; }
 .level-btn[data-level="纪念"].active { background: #c96a5a; border-color: #a04435; color: #fff; }
 
 /* 日历 */
-#calendar-view { padding: 16px; }
+#calendar-view {
+    padding: 16px;
+    background: var(--card-bg);
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+    margin-bottom: 16px;
+}
 .cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 6px; }
 .cal-title-group { display: flex; align-items: center; gap: 12px; }
 .month-arrow { font-size: 14px; color: var(--primary); cursor: pointer; padding: 6px 10px; user-select: none; border-radius: 8px; }
@@ -1544,4 +1550,47 @@ body.dark-mode #multi-select-bar {
 /* 多选模式下隐藏悬浮添加按钮，避免与底部批量操作栏重叠 */
 body.multi-select-mode .floating-add-btn {
     display: none !important;
+}
+
+/* 禁用长按时弹出系统的“复制/全选”菜单 */
+.item-card-new,
+.item-tile,
+.important-card,
+.diary-list-card,
+.diary-card,
+.event-card,
+.book-cover,
+.book-cover-tile,
+.cal-cell {
+    -webkit-touch-callout: none; /* 禁用 iOS 长按菜单 */
+    -webkit-user-select: none;   /* 禁用文本选中 */
+    user-select: none;
+}
+
+/* 生日专属样式：主页卡片 & 列表 */
+.upcoming-card.is-birthday {
+    background: linear-gradient(135deg, #fce4ec, #f8bbd0); /* 粉色渐变 */
+    border-left-color: #e91e63;
+}
+.upcoming-card.is-anniversary {
+    background: linear-gradient(135deg, #f3e5f5, #e1bee7); /* 紫色渐变 */
+    border-left-color: #9c27b0;
+}
+
+/* 月日历格子内的特殊事件标签 */
+.cal-event-rect.is-birthday-event {
+    background: #f06292 !important; /* 生日专属粉色 */
+    font-weight: bold;
+}
+.cal-event-rect.is-anniversary-event {
+    background: #ba68c8 !important; /* 纪念日专属紫色 */
+    font-weight: bold;
+}
+
+/* 日历格子被生日/纪念日高亮（可选，如果不想要整个格子变色，可忽略） */
+.cal-cell.has-birthday {
+    background: #fff0f5 !important;
+}
+.cal-cell.has-anniversary {
+    background: #f9f0ff !important;
 }

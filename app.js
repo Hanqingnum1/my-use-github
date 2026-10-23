@@ -23,8 +23,11 @@ let importantViewMode = 'calendar';
 let importantFilter = 'all';
 let importantTransition = 'all';
 let importantSearchKeyword = '';
+let importantListFilter = 'all';
 let selectedImportantLevel = '提醒';
 let editingImportantId = null;
+let selectedImportantType = '普通';
+let selectedCalendarType = '阳历';
 let currentImportantDetailId = null;
 let importantDetailSource = null;
 let selectedEventChipName = null;
@@ -479,6 +482,15 @@ const I18N = {
         '确定删除选中的 {n} 项吗？删除后无法恢复。': 'Delete {n} selected items? Cannot be undone.',
         '已改为「{status}」': 'Changed to "{status}"',
         '返回': 'Back',
+        '普通': 'Normal',
+        '生日': 'Birthday',
+        '纪念日': 'Anniversary',
+        '阴历': 'Lunar',
+        '阳历': 'Solar',
+        '已相伴': 'Together for',
+        '下次提醒': 'Next Reminder',
+        '添加日期': 'Add Date',
+        '下次：': 'Next: ',
     },
     'de': {
         '我的生活': 'Mein Leben',
@@ -719,6 +731,15 @@ const I18N = {
         '确定删除选中的 {n} 项吗？删除后无法恢复。': '{n} ausgewählte löschen? Nicht rückgängig machbar.',
         '已改为「{status}」': 'Geändert zu "{status}"',
         '返回': 'Zurück',
+        '普通': 'Normal',
+        '生日': 'Geburtstag',
+        '纪念日': 'Jahrestag',
+        '阴历': 'Mondkalender',
+        '阳历': 'Sonnenkalender',
+        '已相伴': 'Zusammen seit',
+        '下次提醒': 'Nächste Erinnerung',
+        '添加日期': 'Datum hinzufügen',
+        '下次：': 'Nächstes: ',
     }
 };
 
@@ -2620,52 +2641,216 @@ function deleteGiftEvent() {
 }
 
 // ================= 重要日期 =================
+
+// ================= 重要日期 =================
 function getImportantDates() { return JSON.parse(localStorage.getItem('myImportantDates')) || []; }
 
+// 解决“重要程度”点击失效和回显
 function selectLevel(level) {
     selectedImportantLevel = level;
     document.querySelectorAll('.level-btn').forEach(b => b.classList.toggle('active', b.dataset.level === level));
 }
 
+// 解决阴历下拉框为空的问题
+function initLunarSelectors() {
+    const mSelect = document.getElementById('lunar-month-select');
+    const dSelect = document.getElementById('lunar-day-select');
+    if (!mSelect || !dSelect) return;
+    if (mSelect.options.length > 0) return; // 已经初始化过了
+
+    const lunarMonths = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
+    lunarMonths.forEach((m, i) => {
+        const opt = document.createElement('option');
+        opt.value = i + 1;
+        opt.textContent = m;
+        mSelect.appendChild(opt);
+    });
+
+    for (let i = 1; i <= 30; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        const dayNames = ['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十','廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'];
+        opt.textContent = dayNames[i-1];
+        dSelect.appendChild(opt);
+    }
+}
+
+// 切换事件类型（普通/生日/纪念日）
+function selectImportantType(type) {
+    selectedImportantType = type;
+    document.querySelectorAll('#important-type-chips .chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.type === type);
+    });
+    
+    // 历法框：只有选“生日”才显示
+    document.getElementById('lunar-box').style.display = (type === '生日') ? 'block' : 'none';
+    
+    // 事件输入框：只有选“普通”或“纪念日”才显示（生日隐藏）
+    const eventBox = document.getElementById('event-input-box');
+    if (eventBox) eventBox.style.display = (type === '生日') ? 'none' : 'block';
+    
+    // 重要程度框：只有选“普通”才显示
+    const levelBox = document.getElementById('level-selector-box');
+    if (levelBox) levelBox.style.display = (type === '普通') ? 'block' : 'none';
+
+    updateDateBoxVisibility();
+}
+
+// 切换历法（阳历/阴历）
+function selectCalendarType(cal) {
+    selectedCalendarType = cal;
+    document.querySelectorAll('#lunar-type-chips .chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.cal === cal);
+    });
+    updateDateBoxVisibility();
+}
+
+// 解决阳历日期框和阴历下拉框相互切换显示的问题
+function updateDateBoxVisibility() {
+    const isLunarBday = (selectedImportantType === '生日' && selectedCalendarType === '阴历');
+    const solarBox = document.getElementById('solar-date-box');
+    const lunarBox = document.getElementById('lunar-date-box');
+    if(solarBox) solarBox.style.display = isLunarBday ? 'none' : 'block';
+    if(lunarBox) lunarBox.style.display = isLunarBday ? 'block' : 'none';
+    if (isLunarBday) initLunarSelectors();
+}
+
+// 核心：计算下一次发生的阳历日期（每年循环）
+function getNextOccurrenceDate(item) {
+    if (item.type !== '生日' && item.type !== '纪念日') return item.date;
+    
+    const today = new Date(); 
+    today.setHours(0,0,0,0);
+    
+    // 阳历 或 纪念日
+    if (item.type === '纪念日' || item.calendarType === '阳历') {
+        const startDate = new Date(item.date);
+        startDate.setHours(0,0,0,0);
+        let target = new Date(today.getFullYear(), startDate.getMonth(), startDate.getDate());
+        if (target < today) {
+            target = new Date(today.getFullYear() + 1, startDate.getMonth(), startDate.getDate());
+        }
+        return `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')}`;
+    } 
+    
+    // 阴历生日
+    if (item.type === '生日' && item.calendarType === '阴历' && item.lunarMonth && item.lunarDay) {
+        try {
+            let year = today.getFullYear();
+            let solar;
+            try { solar = Lunar.fromYmd(year, item.lunarMonth, item.lunarDay).getSolar(); } 
+            catch(e) { return null; } // 如果某年没有大年三十，直接返回 null，日历上就不显示
+            
+            let solarDate = new Date(solar.getYear(), solar.getMonth() - 1, solar.getDay());
+            solarDate.setHours(0,0,0,0);
+            
+            if (solarDate < today) {
+                try { solar = Lunar.fromYmd(year + 1, item.lunarMonth, item.lunarDay).getSolar(); } 
+                catch(e) { return null; } // 明年也没有，就不显示
+                solarDate = new Date(solar.getYear(), solar.getMonth() - 1, solar.getDay());
+            }
+            return `${solarDate.getFullYear()}-${String(solarDate.getMonth()+1).padStart(2,'0')}-${String(solarDate.getDate()).padStart(2,'0')}`;
+        } catch(e) {
+            return null; 
+        }
+    }
+    return null;
+}
+
+// 保存逻辑修复（解决纪念日保存失败）
 function saveImportantDate() {
     const person = document.getElementById('important-person').value.trim();
-    const date = document.getElementById('important-date').value;
-    const event = document.getElementById('important-event').value.trim();
-    if (!date || !event) { showToast(T('请填写日期和事件！'), 'error'); return; }
+    let event = document.getElementById('important-event').value.trim();
+    const isLunar = (selectedImportantType === '生日' && selectedCalendarType === '阴历');
+    
+    let date = '';
+    let lunarMonth = null, lunarDay = null;
+
+    if (isLunar) {
+        lunarMonth = parseInt(document.getElementById('lunar-month-select').value);
+        lunarDay = parseInt(document.getElementById('lunar-day-select').value);
+        date = `${new Date().getFullYear()}-${String(lunarMonth).padStart(2, '0')}-${String(lunarDay).padStart(2, '0')}`; 
+    } else {
+        date = document.getElementById('important-date').value;
+        if (!date) { showToast(T('请填写日期！'), 'error'); return; }
+    }
+
+    // 如果是生日，强制事件为“生日”
+    if (selectedImportantType === '生日') {
+        event = '生日';
+    }
+
+    if (!event) { showToast(T('请填写事件！'), 'error'); return; }
+
     let dates = getImportantDates();
+    
+    // 生日和纪念日，自动赋予“重要”级别
+    let finalLevel = selectedImportantLevel;
+    if (selectedImportantType === '生日') finalLevel = '重要';
+    if (selectedImportantType === '纪念日') finalLevel = '非常重要';
+
+    const newData = {
+        person, date, event, level: finalLevel,
+        type: selectedImportantType, calendarType: selectedCalendarType,
+        lunarMonth, lunarDay
+    };
+
     if (editingImportantId) {
         const idx = dates.findIndex(d => d.id === editingImportantId);
-        if (idx !== -1) dates[idx] = { ...dates[idx], person, date, event, level: selectedImportantLevel };
+        if (idx !== -1) dates[idx] = { ...dates[idx], ...newData };
         showToast(T('修改成功！'));
     } else {
-        dates.push({ id: Date.now(), person, date, event, level: selectedImportantLevel });
+        dates.push({ id: Date.now(), ...newData });
         showToast(T('保存成功！'));
     }
     localStorage.setItem('myImportantDates', JSON.stringify(dates));
+    
+    // 重置
     editingImportantId = null;
     document.getElementById('important-person').value = '';
     document.getElementById('important-date').value = '';
     document.getElementById('important-event').value = '';
     selectLevel('提醒');
+    selectImportantType('普通');
     switchPage('page-important-dates');
 }
 
+// 详情页（带有阴历标识和纪念日正计时）
 function showImportantDetail(id) {
     const item = getImportantDates().find(d => d.id === id);
     if (!item) return;
     currentImportantDetailId = id;
     const activePage = document.querySelector('.page.active')?.id;
     importantDetailSource = activePage === 'page-home' ? 'page-home' : 'important-dates';
+    
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const days = Math.ceil((new Date(item.date) - today) / (1000 * 60 * 60 * 24));
+    const nextStr = getNextOccurrenceDate(item);
+    const nextDate = new Date(nextStr); nextDate.setHours(0,0,0,0);
+    
+    const days = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
     let dayText = days === 0 ? T('今天') : (days > 0 ? T('{n}天后', { n: days }) : T('已过去{n}天', { n: Math.abs(days) }));
+    
+    let typeLabel = '';
+    if (item.type === '生日') typeLabel = ' 🎂';
+    else if (item.type === '纪念日') typeLabel = ' 💖';
+    
+    let extraHtml = '';
+    if (item.type === '纪念日') {
+        const start = new Date(item.date); start.setHours(0,0,0,0);
+        const diffDays = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0) {
+            extraHtml = `<div class="important-card-date" style="margin-top:5px; color:#d98880; font-weight:bold;">💖 ${T('已相伴')} ${diffDays} ${T('天')}</div>`;
+        }
+    }
+
     document.getElementById('important-detail-content').innerHTML = `
         <div class="important-card level-${item.level}">
             <div class="important-card-header">
-                <span class="important-card-name">${item.person ? `[${item.person}] ` : ''}${T(item.event)}</span>
+                <span class="important-card-name">${item.person ? `[${item.person}] ` : ''}${T(item.event)} ${typeLabel}</span>
                 <span class="important-card-level">${T(item.level)}</span>
             </div>
-            <div class="important-card-date" style="margin-top:10px;">📅 ${T('日期')}：${item.date} (${dayText})</div>
+            <div class="important-card-date" style="margin-top:10px;">📅 ${T('下次提醒')}：${nextStr} (${dayText})</div>
+            ${extraHtml}
         </div>`;
     switchPage('page-important-detail');
 }
@@ -2683,9 +2868,21 @@ function editImportantDate() {
     if (!item) return;
     editingImportantId = item.id;
     document.getElementById('important-person').value = item.person || '';
-    document.getElementById('important-date').value = item.date;
     document.getElementById('important-event').value = item.event;
     selectLevel(item.level);
+    
+    selectedImportantType = item.type || '普通';
+    selectedCalendarType = item.calendarType || '阳历';
+    selectImportantType(selectedImportantType);
+    selectCalendarType(selectedCalendarType);
+
+    if (selectedImportantType === '生日' && selectedCalendarType === '阴历' && item.lunarMonth) {
+        document.getElementById('lunar-month-select').value = item.lunarMonth;
+        document.getElementById('lunar-day-select').value = item.lunarDay;
+    } else {
+        document.getElementById('important-date').value = item.date;
+    }
+    
     switchPage('page-add-important');
 }
 
@@ -2705,16 +2902,25 @@ function renderUpcomingDates() {
     const dates = getImportantDates();
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const upcoming = dates.map(d => {
-        const days = Math.ceil((new Date(d.date) - today) / (1000 * 60 * 60 * 24));
-        return { ...d, days };
-    }).filter(d => d.days >= 0 && d.days <= 30).sort((a, b) => a.days - b.days);
+        const nextStr = getNextOccurrenceDate(d);
+        if (!nextStr) return null; // 如果这天不显示，就排除
+        const days = Math.ceil((new Date(nextStr) - today) / (1000 * 60 * 60 * 24));
+        return { ...d, days, nextStr };
+    }).filter(d => d !== null && d.days >= 0 && d.days <= 30).sort((a, b) => a.days - b.days);
     if (upcoming.length === 0) { section.innerHTML = ''; return; }
     let html = `<div class="card"><h3 style="margin-bottom:12px;">${T('马上要发生 👇')}</h3>`;
     upcoming.forEach(d => {
-        html += `<div class="upcoming-card" onclick="showImportantDetail(${d.id})">
+        // 判断特殊类型添加特定背景类
+        let extraClass = '';
+        if (d.type === '生日') extraClass = 'is-birthday';
+        else if (d.type === '纪念日') extraClass = 'is-anniversary';
+
+        let icon = d.type === '生日' ? '🎂' : (d.type === '纪念日' ? '💖' : '');
+
+        html += `<div class="upcoming-card ${extraClass}" onclick="showImportantDetail(${d.id})">
             <div class="upcoming-info">
-                <div class="upcoming-event">${d.person ? `[${d.person}] ` : ''}${T(d.event)}</div>
-                <div class="upcoming-date">${d.date} · ${T(d.level)}</div>
+                <div class="upcoming-event">${d.person ? `[${d.person}] ` : ''}${icon} ${T(d.event)}</div>
+                <div class="upcoming-date">${d.nextStr} · ${T(d.level)}</div>
             </div>
             <div class="upcoming-days">${d.days}<small>${T('天后')}</small></div>
         </div>`;
@@ -2745,6 +2951,38 @@ function changeMonth(delta) {
     renderCalendar();
 }
 
+function toggleImportantView() {
+    showImportantListView();
+}
+
+function showImportantListView() {
+    const calHeader = document.getElementById('important-calendar-header');
+    const listHeader = document.getElementById('important-list-header');
+    const calView = document.getElementById('calendar-view');
+    const up7 = document.getElementById('upcoming-7days-card');
+    const listView = document.getElementById('important-list-view');
+    const filterBar = document.getElementById('important-filter-bar');
+    const searchBar = document.getElementById('important-search-bar');
+    
+    if (calHeader) calHeader.style.display = 'none';
+    if (listHeader) listHeader.style.display = 'flex';
+    if (calView) calView.style.display = 'none';
+    if (up7) up7.style.display = 'none';
+    if (listView) listView.style.display = 'block';
+    if (filterBar) filterBar.style.display = 'block';
+    if (searchBar) searchBar.style.display = 'none';
+    
+    importantViewMode = 'list';
+    renderImportantList();
+}
+
+function exitImportantList() {
+    if (multiSelectMode.important) {
+        exitMultiSelect('important');
+    }
+    backToCalendar();
+}
+
 function renderCalendar() {
     const grid = document.getElementById('calendar-grid');
     const title = document.getElementById('calendar-month-title');
@@ -2769,13 +3007,27 @@ function renderCalendar() {
                 lunarText = lunar.getDayInChinese();
             }
         } catch (e) {}
-        const dayEvents = dates.filter(dt => dt.date === dateStr);
+        const dayEvents = dates.filter(dt => {
+            const nextDate = getNextOccurrenceDate(dt);
+            return nextDate !== null && nextDate === dateStr;
+        });
+        
+        // 判断这个格子里有没有生日或纪念日
+        const hasBirthday = dayEvents.some(ev => ev.type === '生日');
+        const hasAnniversary = dayEvents.some(ev => ev.type === '纪念日');
+        let cellExtraClass = '';
+        if (hasBirthday) cellExtraClass += ' has-birthday';
+        if (hasAnniversary) cellExtraClass += ' has-anniversary';
+
         let eventsHtml = '';
         dayEvents.slice(0, 2).forEach(ev => {
             let bgColor = '#f9d5cf';
-            if (ev.level === '重要') bgColor = '#e8a49b';
-            else if (ev.level === '纪念') bgColor = '#c96a5a';
-            eventsHtml += `<div class="cal-event-rect" style="background:${bgColor}">${T(ev.event)}</div>`;
+            let extraClass = '';
+            if (ev.type === '生日') { bgColor = '#f06292'; extraClass = 'is-birthday-event'; }
+            else if (ev.type === '纪念日') { bgColor = '#ba68c8'; extraClass = 'is-anniversary-event'; }
+            else if (ev.level === '重要') bgColor = '#e8a49b';
+            else if (ev.level === '非常重要') bgColor = '#c96a5a';
+            eventsHtml += `<div class="cal-event-rect ${extraClass}" style="background:${bgColor}">${ev.type === '生日' ? '🎂' : (ev.type === '纪念日' ? '💖' : '')} ${T(ev.event)}</div>`;
         });
 
         // 判断今天
@@ -2783,7 +3035,7 @@ function renderCalendar() {
         const isToday = (calYear === now.getFullYear() && calMonth === (now.getMonth() + 1) && d === now.getDate());
 
                 const isSelected = selectedCalDate === dateStr && !isToday;
-                html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-date="${dateStr}">
+                html += `<div class="cal-cell ${dayEvents.length > 0 ? 'has-event' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}${cellExtraClass}" data-date="${dateStr}">
             <span class="cal-day">${d}</span>
             ${jieQiText ? `<span class="cal-holiday">${jieQiText}</span>` : (lunarText ? `<span class="cal-lunar">${lunarText}</span>` : '')}
             ${holiday ? `<span class="cal-holiday">${T(holiday)}</span>` : ''}
@@ -2877,7 +3129,7 @@ function renderUpcoming7Days() {
         else { label = T('周' + weekdayNames[d.getDay()]); }
 
         // 当天的事件
-        const dayEvents = dates.filter(x => x.date === dateStr);
+        const dayEvents = dates.filter(x => getNextOccurrenceDate(x) === dateStr);
         const dayDiaries = diaries.filter(x => x.date === dateStr);
 
         let contentHtml = '';
@@ -2920,7 +3172,7 @@ function selectCalDay(dateStr) {
     renderCalendar();
 
     const detail = document.getElementById('important-detail-card');
-    const dates = getImportantDates().filter(d => d.date === dateStr);
+    const dates = getImportantDates().filter(d => getNextOccurrenceDate(d) === dateStr);
     const diaries = getDiaries().filter(d => d.date === dateStr);
     const dayDiaries = diaries.filter(d => d.type === '日记');
     const dayNotes = diaries.filter(d => d.type === '便签');
@@ -2998,10 +3250,35 @@ function selectCalDay(dateStr) {
 }
 
 function backToCalendar() {
-    document.getElementById('calendar-view').style.display = 'block';
-    document.getElementById('important-list-view').style.display = 'none';
+    const calHeader = document.getElementById('important-calendar-header');
+    const listHeader = document.getElementById('important-list-header');
+    const calView = document.getElementById('calendar-view');
+    const up7 = document.getElementById('upcoming-7days-card');
+    const listView = document.getElementById('important-list-view');
+    const searchBar = document.getElementById('important-search-bar');
+    const filterBar = document.getElementById('important-filter-bar');
+    
+    if (calHeader) calHeader.style.display = 'flex';
+    if (listHeader) listHeader.style.display = 'none';
+    if (calView) calView.style.display = 'block';
+    if (up7) up7.style.display = 'block';
+    if (listView) listView.style.display = 'none';
+    if (searchBar) searchBar.style.display = 'none';
+    if (filterBar) filterBar.style.display = 'none';
+    
+    const si = document.getElementById('important-search-input');
+    if (si) si.value = '';
+    importantSearchKeyword = '';
     importantViewMode = 'calendar';
     renderCalendar();
+}
+
+function setImportantListFilter(f) {
+    importantListFilter = f;
+    document.querySelectorAll('#important-filter-chips .chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.filter === f);
+    });
+    renderImportantList();
 }
 
 function toggleImportantSearch() {
@@ -3042,44 +3319,85 @@ function updateImportantMenuButtons() {
         if (btn.dataset.importantTransition && btn.dataset.importantTransition === importantTransition) btn.classList.add('active');
     });
 }
-function showImportantListView() {
-    document.getElementById('important-menu').style.display = 'none';
-    document.getElementById('calendar-view').style.display = 'none';
-    document.getElementById('important-list-view').style.display = 'block';
-    importantViewMode = 'list';
-    renderImportantList();
-}
 
 function renderImportantList() {
-    let dates = getImportantDates();
-    const kw = document.getElementById('important-list-search').value.toLowerCase().trim();
     const container = document.getElementById('important-list-items');
-    if (kw) dates = dates.filter(d => d.event.toLowerCase().includes(kw));
-    if (importantFilter !== 'all') dates = dates.filter(d => d.level === importantFilter);
+    if (!container) return;
+
+    let dates = getImportantDates();
+    const kw = (importantSearchKeyword || '').toLowerCase().trim();
+    if (kw) {
+        dates = dates.filter(d =>
+            (d.event || '').toLowerCase().includes(kw) ||
+            (d.person || '').toLowerCase().includes(kw)
+        );
+    }
+
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    if (importantTransition === 'ended') dates = dates.filter(d => new Date(d.date) < today);
-    else if (importantTransition === 'ongoing') dates = dates.filter(d => new Date(d.date) >= today);
-    dates.sort((a, b) => new Date(a.date) - new Date(b.date));
-    if (dates.length === 0) { container.innerHTML = `<p style="color:#999;text-align:center;margin-top:50px;">${T('暂无匹配的重要日期')}</p>`; return; }
+
+    dates = dates.map(d => {
+        const nextStr = getNextOccurrenceDate(d);
+        if (!nextStr) return null;
+        return { ...d, nextStr, days: Math.ceil((new Date(nextStr) - today) / (1000 * 60 * 60 * 24)) };
+    }).filter(d => d !== null);
+
+    if (importantListFilter === '生日') {
+        dates = dates.filter(d => d.type === '生日');
+    } else if (importantListFilter === '纪念日') {
+        dates = dates.filter(d => d.type === '纪念日');
+    } else if (importantListFilter === 'ongoing') {
+        dates = dates.filter(d => d.type === '普通' && new Date(d.date) >= today);
+    } else if (importantListFilter === 'ended') {
+        dates = dates.filter(d => d.type === '普通' && new Date(d.date) < today);
+    }
+
+    dates.sort((a, b) => new Date(a.nextStr) - new Date(b.nextStr));
+
+    if (dates.length === 0) {
+        container.innerHTML = `<p style="color:#999;text-align:center;margin-top:50px;">${T('暂无匹配的重要日期')}</p>`;
+        return;
+    }
+
     container.innerHTML = '';
+
     dates.forEach(d => {
-        const days = Math.ceil((new Date(d.date) - today) / (1000 * 60 * 60 * 24));
-        let dayText = days === 0 ? T('今天') : (days > 0 ? T('{n}天后', { n: days }) : T('已过去{n}天', { n: Math.abs(days) }));
+        const isMulti = multiSelectMode.important;
+        const isChecked = isMulti && multiSelectedIds.important.has(d.id);
+
+        let dayText = d.days === 0 ? T('今天') : (d.days > 0 ? T('{n}天后', { n: d.days }) : T('已过去{n}天', { n: Math.abs(d.days) }));
+        let icon = d.type === '生日' ? '🎂' : (d.type === '纪念日' ? '💖' : '');
+
         const div = document.createElement('div');
         div.className = `important-card level-${d.level}`;
-        div.setAttribute('onclick', `showImportantDetail(${d.id})`);
-        div.innerHTML = `<div class="important-card-header"><span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${T(d.event)}</span><span class="important-card-level">${T(d.level)}</span></div><div class="important-card-date">${d.date} · ${dayText}</div>`;
-        // 长按删除
-        bindLongPress(div, () => {
-            showConfirm(T('删除重要日期'), T('确定删除「{name}」吗？', { name: T(d.event) }), () => {
-                let dates = getImportantDates().filter(x => x.id !== d.id);
-                localStorage.setItem('myImportantDates', JSON.stringify(dates));
-                showToast(T('已删除'));
-                renderImportantList();
-                renderCalendar();
-                renderUpcomingDates();
+        if (isChecked) div.classList.add('multi-checked');
+        div.setAttribute('data-multi-id', `important-${d.id}`);
+
+        const checkboxHtml = isMulti ? `<div class="multi-checkbox ${isChecked ? 'checked' : ''}"></div>` : '';
+
+        div.innerHTML = `
+            ${checkboxHtml}
+            <div class="important-card-header">
+                <span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${icon} ${T(d.event)}</span>
+                <span class="important-card-level">${T(d.level)}</span>
+            </div>
+            <div class="important-card-date">下次：${d.nextStr} · ${dayText}</div>
+        `;
+
+        if (isMulti) {
+            div.onclick = () => toggleMultiSelected('important', d.id);
+        } else {
+            div.onclick = () => showImportantDetail(d.id);
+            bindLongPress(div, () => {
+                showConfirm(T('删除重要日期'), T('确定删除「{name}」吗？', { name: T(d.event) }), () => {
+                    let dates2 = getImportantDates().filter(x => x.id !== d.id);
+                    localStorage.setItem('myImportantDates', JSON.stringify(dates2));
+                    showToast(T('已删除'));
+                    renderImportantList();
+                    renderCalendar();
+                    renderUpcomingDates();
+                });
             });
-        });
+        }
 
         container.appendChild(div);
     });
@@ -3868,10 +4186,7 @@ function exitMultiSelect(type) {
         if (importantViewMode === 'list') {
             renderImportantList();
         } else {
-            document.getElementById('calendar-view').style.display = 'block';
-            document.getElementById('important-list-view').style.display = 'none';
-            document.getElementById('upcoming-7days-card').style.display = 'block';
-            renderCalendar();
+            backToCalendar();
             renderUpcoming7Days();
         }
     }
@@ -4750,40 +5065,50 @@ function deleteDiary() {
     }
 }
 
-// ================= 纯净版：四大主页左右滑动 =================
+// ================= 全局滑动与边缘返回手势 =================
 const swipePages = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates'];
-let swipeStartX = 0;
-let swipeStartY = 0;
+let touchStartX = 0;
+let touchStartY = 0;
+let isEdgeSwipe = false;
 
 document.addEventListener('touchstart', (e) => {
-    // 如果你按到了底部导航栏、悬浮按钮，或者弹出层，就不记录滑动
-    if (e.target.closest('.bottom-nav') || e.target.closest('.floating-add-btn') || e.target.closest('.modal')) {
-        swipeStartX = -1;
+    if (e.target.closest('.bottom-nav') || e.target.closest('.floating-add-btn') || e.target.closest('.modal') || e.target.tagName.toLowerCase() === 'canvas') {
+        touchStartX = -1;
         return;
     }
-    if (document.getElementById('side-drawer').classList.contains('open')) return;
-    if (document.getElementById('diary-panel').classList.contains('open')) return;
+    if (document.getElementById('side-drawer').classList.contains('open')) { touchStartX = -1; return; }
+    if (document.getElementById('diary-panel').classList.contains('open')) { touchStartX = -1; return; }
 
-    swipeStartX = e.touches[0].clientX;
-    swipeStartY = e.touches[0].clientY;
+    const clientX = e.touches[0].clientX;
+    const screenWidth = window.innerWidth;
+
+    // 判断手指是否按在屏幕边缘 30px 以内
+    isEdgeSwipe = (clientX <= 30 || clientX >= screenWidth - 30);
+
+    touchStartX = clientX;
+    touchStartY = e.touches[0].clientY;
 }, { passive: true });
 
 document.addEventListener('touchend', (e) => {
-    if (swipeStartX === -1) return; // 如果在导航栏点按，忽略
+    if (touchStartX === -1) return;
     if (document.getElementById('side-drawer').classList.contains('open')) return;
     if (document.getElementById('diary-panel').classList.contains('open')) return;
 
-    const swipeEndX = e.changedTouches[0].clientX;
-    const swipeEndY = e.changedTouches[0].clientY;
-    
-    const deltaX = swipeEndX - swipeStartX;
-    const deltaY = swipeEndY - swipeStartY;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
 
-    // 滑动距离大于 70px，且是横向滑动
+    // 1. 边缘手势：右滑（从左侧边缘划出）或 左滑（从右侧边缘划出）
+    if (isEdgeSwipe && Math.abs(deltaX) > 80 && Math.abs(deltaY) < 50) {
+        handleEdgeBack();
+        return;
+    }
+
+    // 2. 核心页面左右滑动（非边缘）
     if (Math.abs(deltaX) > 70 && Math.abs(deltaX) > Math.abs(deltaY)) {
         const activePage = document.querySelector('.page.active');
         if (!activePage) return;
-        
         const currentIndex = swipePages.indexOf(activePage.id);
         if (currentIndex === -1) return;
 
@@ -4806,3 +5131,58 @@ document.addEventListener('touchend', (e) => {
         }
     }
 }, { passive: true });
+
+// 统一处理边缘滑动的“返回/关闭”逻辑
+function handleEdgeBack() {
+    // 1. 关闭各类弹窗
+    if (document.getElementById('confirm-modal').style.display === 'flex') { closeConfirm(); return; }
+    if (document.getElementById('prompt-modal').style.display === 'flex') { closePrompt(); return; }
+    if (document.getElementById('alert-modal').style.display === 'flex') { closeAlert(false); return; }
+    if (document.getElementById('date-picker-modal').style.display === 'flex') { closeDatePicker(); return; }
+    if (document.getElementById('template-modal').style.display === 'flex') { closeTemplateModal(); return; }
+    if (document.getElementById('pattern-lock-modal').style.display === 'flex') { closePatternLock(); return; }
+    if (document.getElementById('crop-overlay').style.display === 'flex') { cancelWallpaper(); return; }
+
+    // 2. 关闭抽屉和侧边面板
+    if (document.getElementById('side-drawer').classList.contains('open')) { closeDrawer(); return; }
+    if (document.getElementById('diary-panel').classList.contains('open')) { closeDiaryPanel(); return; }
+
+    // 3. 列表视图退回
+    if (document.getElementById('page-important-dates').classList.contains('active')) {
+        if (document.getElementById('important-list-view').style.display === 'block') {
+            exitImportantList();
+            return;
+        }
+    }
+
+    // 4. 跳转页面退回上级
+    const activePage = document.querySelector('.page.active')?.id;
+    if (!activePage) return;
+    
+    const backMap = {
+        'page-add': () => switchPage('page-all-items'),
+        'page-add-gift': () => switchPage('page-gift-record'),
+        'page-gift-detail': () => switchPage('page-gift-record'),
+        'page-event-detail': () => switchPage('page-gift-detail'),
+        'page-add-event': () => switchPage('page-gift-detail'),
+        'page-add-important': () => switchPage('page-important-dates'),
+        'page-important-detail': () => backFromImportantDetail(),
+        'page-book-list': () => switchPage('page-home'),
+        'page-book-view': () => switchPage('page-home'),
+        'page-book-detail': () => switchPage('page-book-list'),
+        'page-item-distribution': () => switchPage('page-all-items'),
+        'page-gift-distribution': () => switchPage('page-gift-record'),
+        'page-diary-list': () => backFromImportantDetail(),
+        'page-diary-view': () => backToDiaryList(),
+        'page-diary-edit': () => cancelDiaryEdit(),
+        'page-profile': () => switchPage('page-home'),
+        'page-theme': () => switchPage('page-home'),
+        'page-backup': () => switchPage('page-home'),
+        'page-lock': () => switchPage('page-home'),
+        'page-about': () => switchPage('page-home')
+    };
+
+    if (backMap[activePage]) {
+        backMap[activePage]();
+    }
+}

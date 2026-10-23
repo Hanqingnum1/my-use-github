@@ -2902,7 +2902,9 @@ function selectCalDay(dateStr) {
     if (sel) sel.removeAllRanges();
     if (isLongPress) { isLongPress = false; return; }
 
-    selectedCalDate = dateStr;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    selectedCalDate = (dateStr === todayStr) ? null : dateStr;
     renderCalendar();
 
     const detail = document.getElementById('important-detail-card');
@@ -3838,7 +3840,6 @@ function exitMultiSelect(type) {
         const bar = document.getElementById('multi-select-bar');
         if (bar) bar.style.display = 'none';
     }
-    // 修改这里：取消多选后，只重新渲染当前的列表，不再强制切回日历视图
     if (type === 'important') {
         if (importantViewMode === 'list') {
             renderImportantList();

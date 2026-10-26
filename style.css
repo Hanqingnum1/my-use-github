@@ -573,39 +573,15 @@ body.dark-mode #pattern-canvas {
 .tile-price { font-size: 15px; font-weight: bold; color: var(--primary); margin-bottom: 6px; }
 .tile-badges { display: flex; flex-wrap: wrap; gap: 4px; }
 
-/* 悬浮添加按钮 */
+/* 彻底解决右下角悬浮按钮位置问题 */
 .floating-add-btn {
-    position: fixed;
-    white-space: nowrap; 
-    
-    /* 完美适配电脑宽屏，让它永远对齐中间 500px 容器的右下角 */
-    right: calc(50vw - 250px + 20px);
-    bottom: calc(120px + env(safe-area-inset-bottom));
-    
-    /* 手机屏幕如果小于 500px，就固定在右侧 20px 处 */
-    max-width: calc(100vw - 40px);
-    
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 26px;
-    padding: 12px 22px;
-    font-size: 14px;
-    font-weight: bold;
-    box-shadow: 0 6px 20px rgba(217, 136, 128, 0.4);
-    cursor: pointer;
-    z-index: 1000; 
-    transition: transform 0.2s;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* 手机屏幕（宽度小于 540px）时，强制固定在右边 20px */
-@media (max-width: 539px) {
-    .floating-add-btn {
-        right: 20px;
-    }
+    position: fixed !important;
+    right: 20px !important;
+    bottom: 120px !important; /* 抬高防止被底部导航挡住 */
+    left: auto !important;
+    z-index: 9999 !important;
+    padding: 12px 22px !important;
+    border-radius: 26px !important;
 }
 
 .floating-add-btn:active { 
@@ -1706,3 +1682,47 @@ body.multi-select-mode .floating-add-btn {
     font-size: 14px; border: none; backdrop-filter: blur(4px);
 }
 .preview-btn:active { background: rgba(255,255,255,0.4); }
+/* 大图左右切换按钮 */
+.preview-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: rgba(255,255,255,0.8);
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 10;
+}
+.preview-nav.left { left: 15px; }
+.preview-nav.right { right: 15px; }
+.preview-nav:active { background: rgba(255,255,255,0.3); }
+
+/* 强制修正右下角悬浮按钮位置 */
+.floating-add-btn {
+    position: fixed !important;
+    right: 16px !important;
+    bottom: 95px !important; /* 抬高一点，避开底部导航栏 */
+    left: auto !important;
+    z-index: 1000;
+}
+@media (min-width: 540px) {
+    .floating-add-btn {
+        right: calc(50vw - 234px) !important; /* 大屏居中 */
+    }
+}
+@keyframes slideLeft {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideRight {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+.cal-slide-left { animation: slideLeft 0.3s ease-out forwards; }
+.cal-slide-right { animation: slideRight 0.3s ease-out forwards; }

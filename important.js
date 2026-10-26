@@ -177,7 +177,22 @@ function renderUpcomingDates() {
     html += '</div>'; section.innerHTML = html;
 }
 function openCalendarPicker() { currentInputId = null; pickerMode = 'year-month'; pickerStep = 'year'; selectedYear = null; selectedMonth = null; selectedDay = null; document.getElementById('date-picker-modal').style.display = 'flex'; renderPickerBody(); }
-function changeMonth(delta) { calMonth += delta; if (calMonth < 1) { calMonth = 12; calYear--; } else if (calMonth > 12) { calMonth = 1; calYear++; } selectedCalDate = null; document.getElementById('important-detail-card').style.display = 'none'; renderCalendar(); }
+function changeMonth(delta) { 
+    calMonth += delta; 
+    if (calMonth < 1) { calMonth = 12; calYear--; } 
+    else if (calMonth > 12) { calMonth = 1; calYear++; } 
+    selectedCalDate = null; 
+    document.getElementById('important-detail-card').style.display = 'none'; 
+    renderCalendar(); 
+    
+    // 加入翻页动画
+    const grid = document.getElementById('calendar-grid');
+    if (grid) {
+        grid.classList.remove('cal-slide-left', 'cal-slide-right');
+        void grid.offsetWidth; // 强制触发浏览器重绘
+        grid.classList.add(delta > 0 ? 'cal-slide-left' : 'cal-slide-right');
+    }
+}
 function toggleImportantView() { showImportantListView(); }
 function showImportantListView() {
     const calHeader = document.getElementById('important-calendar-header'); const listHeader = document.getElementById('important-list-header'); const calView = document.getElementById('calendar-view'); const up7 = document.getElementById('upcoming-7days-card'); const listView = document.getElementById('important-list-view'); const filterBar = document.getElementById('important-filter-bar'); const searchBar = document.getElementById('important-search-bar');
@@ -429,31 +444,35 @@ function uploadAnniversaryPhoto(itemId) {
         const file = e.target.files[0];
         if (!file) return;
         
-        // 核心修复：先用 FileReader 把图片读完，再弹窗。
-        // 这样即使弹窗后，图片数据也不会被系统回收！
         const reader = new FileReader();
         reader.onload = (ev) => {
-            const base64Img = ev.target.result; // 这是原图的完整数据
+            const base64Img = ev.target.result;
             if (typeof showPrompt === 'function') {
-                showPrompt('上传照片', '请输入照片对应的年份（如 2024）', String(new Date().getFullYear()), async (yearStr) => {
+                // 把第三个参数改成 ''，这样输入框里就没有默认字，会显示提示文字
+                showPrompt('上传照片', '请输入照片对应的年份（如 2024）', '', async (yearStr) => {
                     if (!yearStr) return;
                     const year = parseInt(yearStr);
                     if (isNaN(year)) { showToast('年份格式错误', 'error'); return; }
                     
-                    showToast('正在保存原图...');
-                    const key = `anniv_${itemId}_${Date.now()}`;
-                    
-                    // 直接存 Base64 数据
-                    await PhotoDB.saveImageBase64(key, base64Img);
-                    
-                    let dates = getImportantDates();
-                    let idx = dates.findIndex(d => d.id === itemId);
-                    if (idx !== -1) {
-                        if (!dates[idx].photos) dates[idx].photos = [];
-                        dates[idx].photos.push({ year: year, key: key });
-                        localStorage.setItem('myImportantDates', JSON.stringify(dates));
-                        showToast('照片上传成功！');
-                        renderAnniversaryAlbum(itemId);
+                    showToast('正在保存照片...');
+                    try {
+                        const key = `anniv_${itemId}_${Date.now()}`;
+                        // 执行存库操作
+                        await PhotoDB.saveImageBase64(key, base64Img);
+                        
+                        let dates = getImportantDates();
+                        let idx = dates.findIndex(d => d.id === itemId);
+                        if (idx !== -1) {
+                            if (!dates[idx].photos) dates[idx].photos = [];
+                            dates[idx].photos.push({ year: year, key: key });
+                            localStorage.setItem('myImportantDates', JSON.stringify(dates));
+                            showToast('照片上传成功！');
+                            renderAnniversaryAlbum(itemId);
+                        }
+                    } catch (err) {
+                        // 如果报错，会明确弹出报错信息，方便我们找原因
+                        console.error(err);
+                        showToast('保存失败: ' + err.message, 'error');
                     }
                 });
             }

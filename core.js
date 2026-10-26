@@ -237,8 +237,11 @@ function loadTheme() { const t = getTheme(); document.getElementById('setting-la
 function saveSetting(k, v) { 
     const theme = getTheme(); theme[k] = v; saveTheme(theme); 
     if (k === 'lang') { 
-        if (typeof applyLanguage === 'function') applyLanguage(); 
-        if (typeof loadTheme === 'function') loadTheme();
+        showToast('正在切换语言...');
+        setTimeout(() => {
+            // 在 WebView 中强制刷新页面的终极方案
+            window.location.href = window.location.href;
+        }, 100);
     } 
 }
 function setThemeColor(c) { const t = getTheme(); t.color = c; saveTheme(t); applyTheme(); }

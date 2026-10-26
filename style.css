@@ -1860,17 +1860,40 @@ body.dark-mode .important-card.is-birthday::before {
 .floating-add-btn {
     position: fixed !important;
     right: 20px !important;
-    bottom: 110px !important; /* 刚好在底部导航栏上方 */
+    bottom: 110px !important;
     left: auto !important;
     z-index: 9999 !important;
     padding: 12px 22px !important;
     border-radius: 26px !important;
+    /* 去掉系统默认黑边 */
+    border: none !important;
+    outline: none !important;
+    -webkit-appearance: none;
+    appearance: none;
     /* 防止文字竖排换行 */
     white-space: nowrap !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
+    color: #fff !important;
+}
+
+/* 针对 4 个页面的专属明亮配色（覆盖前面的旧颜色） */
+#page-all-items .floating-add-btn {
+    background: #5ba3b8 !important; /* 鲜亮青蓝 */
+    box-shadow: 0 6px 20px rgba(91,163,184,0.35) !important;
+}
+#page-gift-record .floating-add-btn {
+    background: #e57373 !important; /* 柔和浅红，替代原来的暗红 */
+    box-shadow: 0 6px 20px rgba(229,115,115,0.35) !important;
+}
+#page-important-dates .floating-add-btn {
+    background: #9b7ebd !important; /* 柔和紫 */
+    box-shadow: 0 6px 20px rgba(155,126,189,0.35) !important;
+}
+#page-book-list .floating-add-btn {
+    background: #a98467 !important; /* 柔和浅棕 */
+    box-shadow: 0 6px 20px rgba(169,132,103,0.35) !important;
 }
 
 /* 大屏 (平板/电脑) 时居中适配 */

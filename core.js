@@ -888,3 +888,69 @@ function confirmDate() {
     }
     closeDatePicker();
 }
+// ================== 无损图片存储方案 (IndexedDB) ==================
+const PhotoDB = {
+    dbName: 'MyLifePhotosDB',
+    storeName: 'photos',
+    db: null,
+
+    // 初始化数据库
+    init() {
+        return new Promise((resolve, reject) => {
+            if (this.db) return resolve(this.db);
+            const request = indexedDB.open(this.dbName, 1);
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(this.storeName)) {
+                    db.createObjectStore(this.storeName); // 用 key (如 ID) 来存图
+                }
+            };
+            request.onsuccess = (e) => {
+                this.db = e.target.result;
+                resolve(this.db);
+            };
+            request.onerror = (e) => reject(e.target.error);
+        });
+    },
+
+    // 保存原图 (接收 File 对象)
+    async saveImage(key, file) {
+        await this.init();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64Str = e.target.result; // 这里是没有被压缩的完整 Base64
+                const transaction = this.db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                const request = store.put(base64Str, key);
+                request.onsuccess = () => resolve(true);
+                request.onerror = (e) => reject(e.target.error);
+            };
+            reader.readAsDataURL(file);
+        });
+    },
+
+    // 读取原图
+    async getImage(key) {
+        await this.init();
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readonly');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.get(key);
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    },
+
+    // 删除图片
+    async deleteImage(key) {
+        await this.init();
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readwrite');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.delete(key);
+            request.onsuccess = () => resolve(true);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+};

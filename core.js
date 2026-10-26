@@ -370,16 +370,56 @@ function generateReadableData() {
     return text;
 }
 
-// 2. 导出数据主弹窗
-function exportData() {
+// 1. 导出数据主弹窗 (支持导出照片)
+async function exportData() {
     let overlay = document.getElementById('export-overlay');
+    
+    // 如果是第一次点击，需要等待读取照片
+    if (typeof showToast === 'function') showToast('正在打包数据与照片...');
+    
+    // 读取所有照片数据
+    let allPhotos = {};
+    try {
+        if (typeof PhotoDB !== 'undefined') {
+            await PhotoDB.init();
+            allPhotos = await new Promise((resolve) => {
+                const transaction = PhotoDB.db.transaction([PhotoDB.storeName], 'readonly');
+                const store = transaction.objectStore(PhotoDB.storeName);
+                const request = store.getAllKeys();
+                request.onsuccess = async (e) => {
+                    const keys = e.target.result;
+                    let photosData = {};
+                    for (let key of keys) {
+                        photosData[key] = await PhotoDB.getImage(key);
+                    }
+                    resolve(photosData);
+                };
+            });
+        }
+    } catch (e) { console.error("读取照片失败", e); }
+
+    const data = { 
+        items: JSON.parse(localStorage.getItem('myItems') || '[]'), 
+        giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'), 
+        importantDates: JSON.parse(localStorage.getItem('myImportantDates') || '[]'), 
+        diaries: JSON.parse(localStorage.getItem('myDiaries') || '[]'), 
+        books: JSON.parse(localStorage.getItem('myBooks') || '[]'), 
+        customIcons: JSON.parse(localStorage.getItem('myCustomIcons') || '{}'), 
+        lock: JSON.parse(localStorage.getItem('myLock') || '{}'), 
+        profile: getProfile(), 
+        theme: getTheme(),
+        photos: allPhotos // 核心：把照片数据也放进去
+    };
+
+    const jsonStr = JSON.stringify(data);
+
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'export-overlay';
         overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:99999;display:flex;flex-direction:column;padding:20px;box-sizing:border-box;';
         
         const title = document.createElement('div');
-        title.innerText = '请长按下方文本框全选复制，或点击一键复制';
+        title.innerText = '请长按下方文本框全选复制（含照片，文本较长）';
         title.style.cssText = 'color:white;font-size:15px;margin-bottom:10px;text-align:center;font-weight:bold;';
         
         const textarea = document.createElement('textarea');
@@ -394,9 +434,7 @@ function exportData() {
         copyBtn.style.cssText = 'flex:1;padding:14px;background:var(--primary,#d98880);color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
         copyBtn.onclick = () => {
             const ta = document.getElementById('export-textarea');
-            ta.select();
-            ta.setSelectionRange(0, 999999); // 针对移动端
-            document.execCommand('copy');
+            ta.select(); ta.setSelectionRange(0, 999999); document.execCommand('copy');
             if (typeof showToast === 'function') showToast('已复制到剪贴板！');
         };
         
@@ -405,54 +443,16 @@ function exportData() {
         closeBtn.style.cssText = 'flex:1;padding:14px;background:#555;color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
         closeBtn.onclick = () => { overlay.style.display = 'none'; };
         
-        btnGroup.appendChild(copyBtn);
-        btnGroup.appendChild(closeBtn);
-        overlay.appendChild(title);
-        overlay.appendChild(textarea);
-        overlay.appendChild(btnGroup);
+        btnGroup.appendChild(copyBtn); btnGroup.appendChild(closeBtn);
+        overlay.appendChild(title); overlay.appendChild(textarea); overlay.appendChild(btnGroup);
         document.body.appendChild(overlay);
-
-        // 菜单选择：JSON 还是 CSV
-        const choice = confirm("点击【确定】导出用于换手机迁移的数据 (JSON)\n点击【取消】导出用于查看或Excel打开的文本 (CSV)");
-        if (choice) {
-            const data = { 
-                items: JSON.parse(localStorage.getItem('myItems') || '[]'), 
-                giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'), 
-                importantDates: JSON.parse(localStorage.getItem('myImportantDates') || '[]'), 
-                diaries: JSON.parse(localStorage.getItem('myDiaries') || '[]'), 
-                books: JSON.parse(localStorage.getItem('myBooks') || '[]'), 
-                customIcons: JSON.parse(localStorage.getItem('myCustomIcons') || '{}'), 
-                lock: JSON.parse(localStorage.getItem('myLock') || '{}'), 
-                profile: getProfile(), 
-                theme: getTheme() 
-            };
-            textarea.value = JSON.stringify(data, null, 2);
-        } else {
-            textarea.value = generateReadableData();
-        }
     }
-    // 每次点击重新判断
-    const choice = confirm("点击【确定】导出用于换手机迁移的数据 (JSON)\n点击【取消】导出用于查看或Excel打开的文本 (CSV)");
-    if (choice) {
-        const data = { 
-            items: JSON.parse(localStorage.getItem('myItems') || '[]'), 
-            giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'), 
-            importantDates: JSON.parse(localStorage.getItem('myImportantDates') || '[]'), 
-            diaries: JSON.parse(localStorage.getItem('myDiaries') || '[]'), 
-            books: JSON.parse(localStorage.getItem('myBooks') || '[]'), 
-            customIcons: JSON.parse(localStorage.getItem('myCustomIcons') || '{}'), 
-            lock: JSON.parse(localStorage.getItem('myLock') || '{}'), 
-            profile: getProfile(), 
-            theme: getTheme() 
-        };
-        document.getElementById('export-textarea').value = JSON.stringify(data, null, 2);
-    } else {
-        document.getElementById('export-textarea').value = generateReadableData();
-    }
+    
     overlay.style.display = 'flex';
+    document.getElementById('export-textarea').value = jsonStr;
 }
 
-// 3. 导入数据弹窗 (粘贴模式)
+// 2. 导入数据弹窗 (支持恢复照片)
 function showImportModal() {
     let overlay = document.getElementById('import-overlay');
     if (!overlay) {
@@ -475,12 +475,12 @@ function showImportModal() {
         const importBtn = document.createElement('button');
         importBtn.innerText = '确认导入';
         importBtn.style.cssText = 'flex:1;padding:14px;background:var(--primary,#d98880);color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
-        importBtn.onclick = () => {
+        importBtn.onclick = async () => {
             const val = document.getElementById('import-textarea').value.trim();
             if (!val) return;
             try {
                 const data = JSON.parse(val);
-                showAlert(T('导入数据'), T('导入会覆盖当前数据，是否继续？'), () => {
+                showAlert(T('导入数据'), T('导入会覆盖当前数据，是否继续？'), async () => {
                     if (data.items) localStorage.setItem('myItems', JSON.stringify(data.items));
                     if (data.giftRecords) localStorage.setItem('myGiftRecords', JSON.stringify(data.giftRecords));
                     if (data.importantDates) localStorage.setItem('myImportantDates', JSON.stringify(data.importantDates));
@@ -490,6 +490,18 @@ function showImportModal() {
                     if (data.lock) localStorage.setItem('myLock', JSON.stringify(data.lock));
                     if (data.profile) localStorage.setItem('myProfile', JSON.stringify(data.profile));
                     if (data.theme) localStorage.setItem('myTheme', JSON.stringify(data.theme));
+                    
+                    // 恢复照片到 IndexedDB
+                    if (data.photos && typeof PhotoDB !== 'undefined') {
+                        if (typeof showToast === 'function') showToast('正在恢复照片，请稍候...');
+                        await PhotoDB.init();
+                        for (let key in data.photos) {
+                            if (data.photos[key]) {
+                                await PhotoDB.saveImageBase64(key, data.photos[key]);
+                            }
+                        }
+                    }
+                    
                     showToast(T('导入成功！')); 
                     setTimeout(() => location.reload(), 1000);
                 });
@@ -503,15 +515,13 @@ function showImportModal() {
         closeBtn.style.cssText = 'flex:1;padding:14px;background:#555;color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
         closeBtn.onclick = () => { overlay.style.display = 'none'; document.getElementById('import-textarea').value = ''; };
         
-        btnGroup.appendChild(importBtn);
-        btnGroup.appendChild(closeBtn);
-        overlay.appendChild(title);
-        overlay.appendChild(textarea);
-        overlay.appendChild(btnGroup);
+        btnGroup.appendChild(importBtn); btnGroup.appendChild(closeBtn);
+        overlay.appendChild(title); overlay.appendChild(textarea); overlay.appendChild(btnGroup);
         document.body.appendChild(overlay);
     }
     overlay.style.display = 'flex';
 }
+
 function clearAllData() { showAlert(T('清空数据'), T('确定要清空所有数据吗？此操作不可恢复！'), () => { ['myItems','myGiftRecords','myImportantDates','myProfile','myTheme','myDiaries','myBooks','myCustomIcons','myLock'].forEach(k => localStorage.removeItem(k)); showToast(T('已清空')); location.reload(); }); }
 function getLockSettings() { return JSON.parse(localStorage.getItem('myLock')) || { type: '' }; }
 function loadLockSettings() { const l = getLockSettings(); document.querySelectorAll('.lock-check').forEach(el => el.classList.remove('active')); if (l.type) { const el = document.getElementById('lock-' + l.type); if (el) el.classList.add('active'); } }
@@ -589,7 +599,7 @@ function bindLongPress(el, callback) {
     let timer = null; let fired = false; let startX = 0, startY = 0;
     const start = (e) => {
         fired = false; const p = e.touches ? e.touches[0] : e; startX = p.clientX; startY = p.clientY;
-        clearTimeout(timer); timer = setTimeout(() => { fired = true; itemLongPressFired = true; if (navigator.vibrate) navigator.vibrate(30); callback(); }, 600);
+        clearTimeout(timer); timer = setTimeout(() => { fired = true; itemLongPressFired = true; window._longPressFired = true; if (navigator.vibrate) navigator.vibrate(30); callback(); }, 600);
     };
     const move = (e) => { const p = e.touches ? e.touches[0] : e; if (Math.abs(p.clientX - startX) > 10 || Math.abs(p.clientY - startY) > 10) { clearTimeout(timer); } };
     const cancel = () => { clearTimeout(timer); };
@@ -909,6 +919,18 @@ const PhotoDB = {
                 this.db = e.target.result;
                 resolve(this.db);
             };
+            request.onerror = (e) => reject(e.target.error);
+        });
+    },
+
+    // 在 PhotoDB 对象里加上这个方法
+    async saveImageBase64(key, base64Str) {
+        await this.init();
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([this.storeName], 'readwrite');
+            const store = transaction.objectStore(this.storeName);
+            const request = store.put(base64Str, key);
+            request.onsuccess = () => resolve(true);
             request.onerror = (e) => reject(e.target.error);
         });
     },

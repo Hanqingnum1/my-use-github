@@ -120,12 +120,13 @@ function showImportantDetail(id) {
                     <h4 style="margin:0; font-size:15px;">📸 时光相册</h4>
                     <button onclick="uploadAnniversaryPhoto(${item.id})" style="background:var(--primary); color:#fff; border:none; padding:6px 12px; border-radius:8px; font-size:12px;">+ 上传照片</button>
                 </div>
-                <div id="anniversary-album-grid-${item.id}" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;">
-                    <div style="color:#999; font-size:12px; grid-column:1/-1;">加载中...</div>
+                <div id="anniversary-album-grid-${item.id}" class="album-timeline">
+                    <div style="color:#999; font-size:12px;">加载中...</div>
                 </div>
             </div>
         `;
     }
+    // ... (下面的 innerHTML 赋值保持不变)
 
     document.getElementById('important-detail-content').innerHTML = `
         <div class="important-card level-${item.level}">
@@ -345,10 +346,10 @@ async function renderAnniversaryAlbum(itemId) {
     if (!grid) return;
     
     const item = getImportantDates().find(d => d.id === itemId);
-    const photos = item.photos || []; // 结构: [{ year: 2023, key: 'photo_123' }]
+    const photos = item.photos || [];
     
     if (photos.length === 0) {
-        grid.innerHTML = `<div style="color:#999; font-size:12px; grid-column:1/-1; text-align:center; padding:10px;">还没有照片，点击上方按钮上传吧~</div>`;
+        grid.innerHTML = `<div style="color:#999; font-size:12px; text-align:center; padding:10px;">还没有照片，点击上方按钮上传吧~</div>`;
         return;
     }
     
@@ -356,40 +357,107 @@ async function renderAnniversaryAlbum(itemId) {
     photos.sort((a, b) => b.year - a.year);
     grid.innerHTML = '';
     
+    // 把 base64 取出来拼成数组，用于大图左右滑动
+    window._currentAlbumPhotos = [];
+    
     for (let p of photos) {
-        // 从 IndexedDB 读取原图
         const base64Img = await PhotoDB.getImage(p.key);
         if (base64Img) {
+            window._currentAlbumPhotos.push({ year: p.year, img: base64Img, key: p.key });
+            
             const div = document.createElement('div');
-            div.style.cssText = 'position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden;';
+            div.className = 'album-item';
             div.innerHTML = `
-                <img src="${base64Img}" style="width:100%; height:100%; object-fit:cover;">
-                <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:#fff; font-size:10px; text-align:center; padding:2px 0;">${p.year}年</div>
+                <div class="album-year">📅 ${p.year} 年</div>
+                <div class="album-img-wrap">
+                    <img src="${base64Img}">
+                </div>
             `;
-            // 长按删除
-            if (typeof bindLongPress === 'function') {
-                bindLongPress(div, () => {
-                    showConfirm('删除照片', `确定删除 ${p.year} 年的照片吗？`, async () => {
-                        await PhotoDB.deleteImage(p.key);
-                        let dates = getImportantDates();
-                        let idx = dates.findIndex(d => d.id === itemId);
-                        if (idx !== -1) {
-                            dates[idx].photos = dates[idx].photos.filter(ph => ph.key !== p.key);
-                            localStorage.setItem('myImportantDates', JSON.stringify(dates));
-                            renderAnniversaryAlbum(itemId);
-                            showToast('照片已删除');
-                        }
-                    });
-                });
-            }
+            
+            // 点击查看大图
+            div.querySelector('.album-img-wrap').onclick = (e) => {
+                if (window._longPressFired) { window._longPressFired = false; return; }
+                showFullScreenImage(base64Img, itemId, p.key, p.year);
+            };
+            
             grid.appendChild(div);
         }
     }
 }
 
+// ================== 全屏查看图片 (支持修改年份/删除) ==================
+function showFullScreenImage(src, itemId, photoKey, currentYear) {
+    let overlay = document.getElementById('global-image-preview');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'global-image-preview';
+        
+        const img = document.createElement('img');
+        img.id = 'global-preview-img';
+        
+        const actions = document.createElement('div');
+        actions.className = 'preview-actions';
+        actions.innerHTML = `
+            <button class="preview-btn" id="btn-edit-year">✏️ 修改年份</button>
+            <button class="preview-btn" id="btn-del-photo" style="background:rgba(217, 83, 79, 0.6);">🗑️ 删除</button>
+        `;
+        
+        overlay.appendChild(img);
+        overlay.appendChild(actions);
+        document.body.appendChild(overlay);
+        
+        // 点击黑色背景关闭
+        overlay.onclick = (e) => {
+            if (e.target === overlay || e.target.id === 'global-preview-img') {
+                overlay.classList.remove('show');
+            }
+        };
+    }
+    
+    const imgEl = document.getElementById('global-preview-img');
+    imgEl.src = src;
+    
+    // 绑定修改年份
+    document.getElementById('btn-edit-year').onclick = () => {
+        showPrompt('修改年份', '请输入新的年份', String(currentYear), (newYearStr) => {
+            const newYear = parseInt(newYearStr);
+            if (isNaN(newYear)) { showToast('年份格式错误', 'error'); return; }
+            
+            let dates = getImportantDates();
+            let item = dates.find(d => d.id === itemId);
+            if (item) {
+                let photo = item.photos.find(p => p.key === photoKey);
+                if (photo) photo.year = newYear;
+                localStorage.setItem('myImportantDates', JSON.stringify(dates));
+                showToast('年份修改成功');
+                overlay.classList.remove('show');
+                renderAnniversaryAlbum(itemId); // 重新渲染
+            }
+        });
+    };
+    
+    // 绑定删除
+    document.getElementById('btn-del-photo').onclick = () => {
+        showConfirm('删除照片', `确定要删除这张照片吗？`, async () => {
+            overlay.classList.remove('show');
+            await PhotoDB.deleteImage(photoKey);
+            
+            let dates = getImportantDates();
+            let item = dates.find(d => d.id === itemId);
+            if (item) {
+                item.photos = item.photos.filter(p => p.key !== photoKey);
+                localStorage.setItem('myImportantDates', JSON.stringify(dates));
+                renderAnniversaryAlbum(itemId); // 重新渲染
+                showToast('照片已删除');
+            }
+        });
+    };
+    
+    overlay.classList.add('show');
+}
+
 // 上传照片
 function uploadAnniversaryPhoto(itemId) {
-    // 创建隐藏的 input 用于选图
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -397,34 +465,40 @@ function uploadAnniversaryPhoto(itemId) {
         const file = e.target.files[0];
         if (!file) return;
         
-        // 简单询问是哪一年的照片
-        const yearStr = prompt('请输入照片对应的年份（如 2024）：', new Date().getFullYear());
-        if (!yearStr) return;
-        const year = parseInt(yearStr);
-        if (isNaN(year)) { showToast('年份格式错误', 'error'); return; }
-        
-        showToast('正在保存原图...');
-        
-        try {
-            // 存入 IndexedDB
-            const key = `anniv_${itemId}_${Date.now()}`;
-            await PhotoDB.saveImage(key, file);
-            
-            // 更新 localStorage 记录
-            let dates = getImportantDates();
-            let idx = dates.findIndex(d => d.id === itemId);
-            if (idx !== -1) {
-                if (!dates[idx].photos) dates[idx].photos = [];
-                dates[idx].photos.push({ year: year, key: key });
-                localStorage.setItem('myImportantDates', JSON.stringify(dates));
-                
-                showToast('照片上传成功！');
-                renderAnniversaryAlbum(itemId);
-            }
-        } catch (err) {
-            console.error(err);
-            showToast('保存失败，请重试', 'error');
+        // 调用 core.js 中写好的美化弹窗
+        if (typeof showPrompt === 'function') {
+            showPrompt('上传照片', '请输入照片对应的年份（如 2024）', String(new Date().getFullYear()), async (yearStr) => {
+                if (!yearStr) return;
+                await processAnniversaryPhoto(itemId, file, yearStr);
+            });
         }
     };
     input.click();
+}
+
+// 抽取出来的保存逻辑
+async function processAnniversaryPhoto(itemId, file, yearStr) {
+    const year = parseInt(yearStr);
+    if (isNaN(year)) { if(typeof showToast==='function') showToast('年份格式错误', 'error'); return; }
+    
+    if(typeof showToast==='function') showToast('正在保存原图...');
+    
+    try {
+        const key = `anniv_${itemId}_${Date.now()}`;
+        await PhotoDB.saveImage(key, file);
+        
+        let dates = getImportantDates();
+        let idx = dates.findIndex(d => d.id === itemId);
+        if (idx !== -1) {
+            if (!dates[idx].photos) dates[idx].photos = [];
+            dates[idx].photos.push({ year: year, key: key });
+            localStorage.setItem('myImportantDates', JSON.stringify(dates));
+            
+            if(typeof showToast==='function') showToast('照片上传成功！');
+            renderAnniversaryAlbum(itemId);
+        }
+    } catch (err) {
+        console.error(err);
+        if(typeof showToast==='function') showToast('保存失败，请重试', 'error');
+    }
 }

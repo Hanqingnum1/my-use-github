@@ -234,7 +234,13 @@ function applyTheme() {
     if (t.wallpaper) { document.body.style.backgroundImage = `url(${t.wallpaper})`; document.body.style.backgroundSize = 'cover'; document.body.style.backgroundAttachment = 'fixed'; } else { document.body.style.backgroundImage = ''; }
 }
 function loadTheme() { const t = getTheme(); document.getElementById('setting-lang').value = t.lang || 'zh-CN'; document.getElementById('setting-startpage').value = t.startpage || 'home'; document.getElementById('dark-mode-toggle').checked = !!t.dark; }
-function saveSetting(k, v) { const theme = getTheme(); theme[k] = v; saveTheme(theme); if (k === 'lang') location.reload(); }
+function saveSetting(k, v) { 
+    const theme = getTheme(); theme[k] = v; saveTheme(theme); 
+    if (k === 'lang') { 
+        if (typeof applyLanguage === 'function') applyLanguage(); 
+        if (typeof loadTheme === 'function') loadTheme();
+    } 
+}
 function setThemeColor(c) { const t = getTheme(); t.color = c; saveTheme(t); applyTheme(); }
 function toggleDarkMode(on) { const t = getTheme(); t.dark = on; saveTheme(t); applyTheme(); }
 function uploadWallpaper(input) { if (!input.files[0]) return; const reader = new FileReader(); reader.onload = (e) => { compressImage(e.target.result, 1200, (b64) => { cropTarget = 'wallpaper'; cropImgSrc = b64; showCropWindow(); }); }; reader.readAsDataURL(input.files[0]); }
@@ -779,8 +785,9 @@ window.addEventListener('load', () => {
 const swipePages = ['page-home', 'page-all-items', 'page-gift-record', 'page-important-dates'];
 let touchStartX = 0; let touchStartY = 0; let isEdgeSwipe = false;
 document.addEventListener('touchstart', (e) => {
-    if (!e.touches || !e.touches.length) return; // 防止鸿蒙多指或系统手势报错
-    if (e.target.closest('.bottom-nav') || e.target.closest('.floating-add-btn') || e.target.closest('.modal') || e.target.tagName.toLowerCase() === 'canvas') { touchStartX = -1; return; }
+    if (!e.touches || !e.touches.length) return;
+    // 遇到底部导航、悬浮按钮、弹窗、画板、日历卡片时，直接放弃全局滑动拦截
+    if (e.target.closest('.bottom-nav') || e.target.closest('.floating-add-btn') || e.target.closest('.modal') || e.target.closest('#calendar-view') || e.target.tagName.toLowerCase() === 'canvas') { touchStartX = -1; return; }
     const drawer = document.getElementById('side-drawer');
     const diaryPanel = document.getElementById('diary-panel');
     if (drawer && drawer.classList.contains('open')) { touchStartX = -1; return; }

@@ -216,6 +216,13 @@ function initItemChart() {
         const map = {};
         getItems().forEach(i => { map[i.status || '持有中'] = (map[i.status || '持有中'] || 0) + 1; });
         chartData = Object.keys(map).map(key => ({ name: key, value: map[key] }));
+    } else if (itemChartMode === 'acquire') {
+        const map = {};
+        getItems().forEach(i => { 
+            const acq = i.acquireMethod || '未设置';
+            map[acq] = (map[acq] || 0) + 1; 
+        });
+        chartData = Object.keys(map).map(key => ({ name: key, value: map[key] }));
     }
 
     const option = {

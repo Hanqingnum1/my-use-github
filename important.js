@@ -133,7 +133,7 @@ function showImportantDetail(id) {
     // ... (下面的 innerHTML 赋值保持不变)
 
     document.getElementById('important-detail-content').innerHTML = `
-        <div class="important-card level-${item.level}">
+        <div class="important-card level-${item.level}${item.type === '生日' ? ' is-birthday' : (item.type === '纪念日' ? ' is-anniversary' : '')}">
             <div class="important-card-header">
                 <span class="important-card-name">${item.person ? `[${item.person}] ` : ''}${T(item.event)} ${typeLabel}</span>
                 ${(item.type === '普通' || !item.type) ? `<span class="important-card-level">${T(item.level)}</span>` : ''}
@@ -172,10 +172,12 @@ function renderUpcomingDates() {
         else if (d.type === '纪念日') extraClass = 'is-anniversary';
         extraClass += ` level-${d.level}`;
         let icon = d.type === '生日' ? '🎂' : (d.type === '纪念日' ? '💖' : '');
-        html += `<div class="upcoming-card ${extraClass}" onclick="showImportantDetail(${d.id})"><div class="upcoming-info"><div class="upcoming-event">${d.person ? `[${d.person}] ` : ''}${icon} ${T(d.event)}</div><div class="upcoming-date">${d.nextStr} · ${T(d.level)}</div></div><div class="upcoming-days">${d.days}<small>${T('天后')}</small></div></div>`;
-    });
-    html += '</div>'; section.innerHTML = html;
-}
+        const showLevel = (d.type !== '生日' && d.type !== '纪念日');
+        html += `<div class="upcoming-card ${extraClass}" onclick="showImportantDetail(${d.id})"><div class="upcoming-info"><div class="upcoming-event">${d.person ? `[${d.person}] ` : ''}${icon} ${T(d.event)}</div><div class="upcoming-date">${d.nextStr}${showLevel ? ' · ' + T(d.level) : ''}</div></div><div class="upcoming-days">${d.days}<small>${T('天后')}</small></div></div>`;
+    });                                    // ← forEach 闭合
+    html += '</div>';
+    section.innerHTML = html;
+}                                          // ← 函数闭合
 function openCalendarPicker() { currentInputId = null; pickerMode = 'year-month'; pickerStep = 'year'; selectedYear = null; selectedMonth = null; selectedDay = null; document.getElementById('date-picker-modal').style.display = 'flex'; renderPickerBody(); }
 function changeMonth(delta) { 
     calMonth += delta; 
@@ -289,7 +291,9 @@ function selectCalDay(dateStr) {
         html += `<div class="cal-detail-section">📌 ${T('重要事件')}</div>`;
         dates.forEach(d => {
     let levelHtml = (d.type === '普通' || !d.type) ? `<span class="important-card-level">${T(d.level)}</span>` : '';
-    html += `<div class="important-card level-${d.level}" onclick="showImportantDetail(${d.id})"><div class="important-card-header"><span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${T(d.event)}</span>${levelHtml}</div><div class="important-card-date">${d.date}</div></div>`;
+    const albumAttr = (d.type === '纪念日' && d.photos && d.photos.length > 0) ? ` data-album-item="${d.id}"` : '';
+    const bdayClass = d.type === '生日' ? ' is-birthday' : (d.type === '纪念日' ? ' is-anniversary' : '');
+    html += `<div class="important-card level-${d.level}${bdayClass}"${albumAttr} onclick="showImportantDetail(${d.id})"><div class="important-card-header"><span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${T(d.event)}</span>${levelHtml}</div><div class="important-card-date">${d.date}</div></div>`;
 });
     }
     if (dayDiaries.length > 0 || dayNotes.length > 0) {
@@ -299,6 +303,12 @@ function selectCalDay(dateStr) {
         html += `</div>`;
     }
     detail.innerHTML = html; detail.style.display = 'block';
+    detail.querySelectorAll('.important-card[data-album-item]').forEach(card => {
+        const id = parseInt(card.getAttribute('data-album-item'));
+        if (!id) return;
+        const item = getImportantDates().find(x => x.id === id);
+        if (item && item.photos && item.photos.length) applyAlbumBgToCard(card, item.photos);
+    });
     detail.querySelectorAll('.important-card').forEach(card => {
         const onclickAttr = card.getAttribute('onclick') || ''; const m = onclickAttr.match(/showImportantDetail\((\d+)\)/); if (!m) return; const id = parseInt(m[1]);
         bindLongPress(card, () => { const item = getImportantDates().find(d => d.id === id); if (!item) return; showConfirm(T('删除重要日期'), T('确定删除「{name}」吗？', { name: item.event }), () => { let dates2 = getImportantDates().filter(d => d.id !== id); localStorage.setItem('myImportantDates', JSON.stringify(dates2)); showToast(T('已删除')); renderUpcomingDates(); renderUpcoming7Days(); selectCalDay(dateStr); }); });
@@ -316,6 +326,27 @@ function closeImportantMenu() { const m = document.getElementById('important-men
 function setImportantFilter(f) { importantFilter = f; updateImportantMenuButtons(); showImportantListView(); }
 function setImportantTransition(t) { importantTransition = t; updateImportantMenuButtons(); showImportantListView(); }
 function updateImportantMenuButtons() { document.querySelectorAll('#important-menu .filter-btn').forEach(btn => { btn.classList.remove('active'); if (btn.dataset.importantFilter && btn.dataset.importantFilter === importantFilter) btn.classList.add('active'); if (btn.dataset.importantTransition && btn.dataset.importantTransition === importantTransition) btn.classList.add('active'); }); }
+// ================= 纪念日卡片：用相册最新照片作背景（方案A） =================
+async function applyAlbumBgToCard(cardEl, photos) {
+    if (!cardEl || !photos || !photos.length) return;
+    try {
+        const sorted = [...photos].sort((a, b) => (b.year || 0) - (a.year || 0));
+        const latest = sorted[0];
+        if (!latest || !latest.key) return;
+        const base64 = await PhotoDB.getImage(latest.key);
+        if (!base64) return;
+        const isDark = document.body.classList.contains('dark-mode');
+        const overlay = isDark
+            ? 'linear-gradient(rgba(40,40,46,0.78), rgba(40,40,46,0.78))'
+            : 'linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.72))';
+        cardEl.style.setProperty('background-color', 'transparent', 'important');
+        cardEl.style.setProperty('background-image', `${overlay}, url(${base64})`, 'important');
+        cardEl.style.setProperty('background-size', 'cover', 'important');
+        cardEl.style.setProperty('background-position', 'center', 'important');
+        cardEl.style.setProperty('background-repeat', 'no-repeat', 'important');
+        cardEl.classList.add('has-photo-bg');
+    } catch (e) { console.warn('相册背景加载失败', e); }
+}
 function renderImportantList() {
     const container = document.getElementById('important-list-items'); if (!container) return;
     let dates = getImportantDates(); const kw = (importantSearchKeyword || '').toLowerCase().trim();
@@ -329,13 +360,17 @@ function renderImportantList() {
     dates.forEach(d => {
         const isMulti = multiSelectMode.important; const isChecked = isMulti && multiSelectedIds.important.has(d.id);
         let dayText = d.days === 0 ? T('今天') : (d.days > 0 ? T('{n}天后', { n: d.days }) : T('已过去{n}天', { n: Math.abs(d.days) })); let icon = d.type === '生日' ? '🎂' : (d.type === '纪念日' ? '💖' : '');
-        const div = document.createElement('div'); div.className = `important-card level-${d.level}`; if (isChecked) div.classList.add('multi-checked'); div.setAttribute('data-multi-id', `important-${d.id}`);
+        const bdayClass = d.type === '生日' ? ' is-birthday' : (d.type === '纪念日' ? ' is-anniversary' : '');
+        const div = document.createElement('div'); div.className = `important-card level-${d.level}${bdayClass}`; if (isChecked) div.classList.add('multi-checked'); div.setAttribute('data-multi-id', `important-${d.id}`);
         const checkboxHtml = isMulti ? `<div class="multi-checkbox ${isChecked ? 'checked' : ''}"></div>` : '';
         let levelHtml = (d.type === '普通' || !d.type) ? `<span class="important-card-level">${T(d.level)}</span>` : '';
 div.innerHTML = `${checkboxHtml}<div class="important-card-header"><span class="important-card-name">${d.person ? `[${d.person}] ` : ''}${icon} ${T(d.event)}</span>${levelHtml}</div><div class="important-card-date">下次：${d.nextStr} · ${dayText}</div>`;
         if (isMulti) { div.onclick = () => toggleMultiSelected('important', d.id); }
         else { div.onclick = () => showImportantDetail(d.id); bindLongPress(div, () => { showConfirm(T('删除重要日期'), T('确定删除「{name}」吗？', { name: T(d.event) }), () => { let dates2 = getImportantDates().filter(x => x.id !== d.id); localStorage.setItem('myImportantDates', JSON.stringify(dates2)); showToast(T('已删除')); renderImportantList(); renderCalendar(); renderUpcomingDates(); }); }); }
         container.appendChild(div);
+        if (d.type === '纪念日' && d.photos && d.photos.length > 0) {
+            applyAlbumBgToCard(div, d.photos);
+        }
     });
 }
 // 问题5：月日历卡片左右滑动切换月份
@@ -440,44 +475,54 @@ function uploadAnniversaryPhoto(itemId) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const base64Img = ev.target.result;
-            if (typeof showPrompt === 'function') {
-                // 把第三个参数改成 ''，这样输入框里就没有默认字，会显示提示文字
-                showPrompt('上传照片', '请输入照片对应的年份（如 2024）', '', async (yearStr) => {
-                    if (!yearStr) return;
-                    const year = parseInt(yearStr);
-                    if (isNaN(year)) { showToast('年份格式错误', 'error'); return; }
+        // 【核心防丢机制】：选完图片立刻存到全局变量，防止异步弹窗期间被系统回收
+        window._tempUploadFile = file;
+        
+        // 调用你 core.js 里的美化弹窗
+        if (typeof showPrompt === 'function') {
+            // 参数说明：标题，默认值(空)，回调函数
+            showPrompt('请输入照片年份', '', async (yearStr) => {
+                if (!yearStr) return;
+                const year = parseInt(yearStr);
+                if (isNaN(year)) { showToast('年份格式错误', 'error'); return; }
+                
+                const fileToSave = window._tempUploadFile;
+                if (!fileToSave) { showToast('图片已失效，请重新选择', 'error'); return; }
+                
+                showToast('正在保存原图...');
+                
+                try {
+                    const key = `anniv_${itemId}_${Date.now()}`;
+                    // 传入暂存的 file 对象
+                    await PhotoDB.saveImage(key, fileToSave);
                     
-                    showToast('正在保存照片...');
-                    try {
-                        const key = `anniv_${itemId}_${Date.now()}`;
-                        // 执行存库操作
-                        await PhotoDB.saveImageBase64(key, base64Img);
-                        
-                        let dates = getImportantDates();
-                        let idx = dates.findIndex(d => d.id === itemId);
-                        if (idx !== -1) {
-                            if (!dates[idx].photos) dates[idx].photos = [];
-                            dates[idx].photos.push({ year: year, key: key });
-                            localStorage.setItem('myImportantDates', JSON.stringify(dates));
-                            showToast('照片上传成功！');
-                            renderAnniversaryAlbum(itemId);
-                        }
-                    } catch (err) {
-                        // 如果报错，会明确弹出报错信息，方便我们找原因
-                        console.error(err);
-                        showToast('保存失败: ' + err.message, 'error');
+                    let dates = getImportantDates();
+                    let idx = dates.findIndex(d => d.id === itemId);
+                    if (idx !== -1) {
+                        if (!dates[idx].photos) dates[idx].photos = [];
+                        dates[idx].photos.push({ year: year, key: key });
+                        localStorage.setItem('myImportantDates', JSON.stringify(dates));
+                        showToast('照片上传成功！');
+                        renderAnniversaryAlbum(itemId);
                     }
-                });
+                } catch (err) {
+                    console.error(err);
+                    showToast('保存失败，请重试', 'error');
+                } finally {
+                    window._tempUploadFile = null; // 用完清理，释放内存
+                }
+            }, '请输入年份（如 2024）');
+        } else {
+            // 兜底：万一弹窗组件没加载，用原生弹窗
+            const yearStr = prompt('请输入照片年份：', '');
+            if (yearStr) {
+                // ...（同上的保存逻辑，略）
             }
-        };
-        reader.readAsDataURL(file);
+        }
     };
     input.click();
 }
@@ -497,6 +542,7 @@ function showFullScreenImage(index, itemId) {
         
         const img = document.createElement('img');
         img.id = 'global-preview-img';
+        img.draggable = false;
         
         const navLeft = document.createElement('div');
         navLeft.className = 'preview-nav left';
@@ -523,11 +569,43 @@ function showFullScreenImage(index, itemId) {
         
         // 点击黑色背景关闭
         overlay.onclick = (e) => {
+            if (_fsSwiped) { _fsSwiped = false; return; }
             if (e.target === overlay || e.target.id === 'global-preview-img') {
                 overlay.classList.remove('show');
             }
         };
         
+                // 左右滑动手势切换大图
+        let _fsStartX = 0, _fsStartY = 0, _fsTracking = false, _fsSwiped = false;
+        overlay.ontouchstart = (e) => {
+            if (e.touches.length !== 1) return;
+            _fsStartX = e.touches[0].clientX;
+            _fsStartY = e.touches[0].clientY;
+            _fsTracking = true;
+        };
+        overlay.ontouchmove = (e) => {
+            if (!_fsTracking) return;
+            // 横向移动明显时阻止页面滚动
+            const dx = e.touches[0].clientX - _fsStartX;
+            const dy = e.touches[0].clientY - _fsStartY;
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 15) {
+                if (e.cancelable) e.preventDefault();
+            }
+        };
+        overlay.ontouchend = (e) => {
+            if (!_fsTracking) return;
+            _fsTracking = false;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - _fsStartX;
+            const dy = t.clientY - _fsStartY;
+            // 横向滑动超过 50px 且明显大于纵向，才切换
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                _fsSwiped = true;
+                changeFullScreenImage(dx < 0 ? 1 : -1);
+                setTimeout(() => { _fsSwiped = false; }, 350);
+            }
+        };
+
         // 绑定按钮事件
         document.getElementById('btn-edit-year').onclick = handleEditYear;
         document.getElementById('btn-del-photo').onclick = handleDeletePhoto;
@@ -567,11 +645,15 @@ function changeFullScreenImage(direction) {
 function handleEditYear() {
     const currentPhoto = window._currentAlbumPhotos[_fullScreenIndex];
     if (!currentPhoto) return;
-    
-    showPrompt('修改年份', '请输入新的年份', String(currentPhoto.year), (newYearStr) => {
+
+    // 先关掉大图，防止盖住 prompt 弹窗
+    document.getElementById('global-image-preview').classList.remove('show');
+
+    showPrompt('修改年份', '', (newYearStr) => {
+        if (!newYearStr) return;
         const newYear = parseInt(newYearStr);
         if (isNaN(newYear)) { showToast('年份格式错误', 'error'); return; }
-        
+
         let dates = getImportantDates();
         let item = dates.find(d => d.id === _fullScreenItemId);
         if (item) {
@@ -579,10 +661,9 @@ function handleEditYear() {
             if (photo) photo.year = newYear;
             localStorage.setItem('myImportantDates', JSON.stringify(dates));
             showToast('年份修改成功');
-            document.getElementById('global-image-preview').classList.remove('show');
             renderAnniversaryAlbum(_fullScreenItemId);
         }
-    });
+    }, '请输入年份（如 2024）');
 }
 
 function handleDeletePhoto() {

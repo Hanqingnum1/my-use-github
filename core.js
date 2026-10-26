@@ -595,7 +595,15 @@ function finishPattern() {
         }
     }
 }
-function showPrompt(title, defaultValue, onOk) { promptCallback = onOk; document.getElementById('prompt-title').textContent = title; const input = document.getElementById('prompt-input'); input.value = defaultValue || ''; document.getElementById('prompt-modal').style.display = 'flex'; setTimeout(() => input.focus(), 100); }
+function showPrompt(title, defaultValue, onOk, placeholder) { 
+    promptCallback = onOk; 
+    document.getElementById('prompt-title').textContent = title; 
+    const input = document.getElementById('prompt-input'); 
+    input.value = defaultValue || ''; 
+    input.placeholder = placeholder || '';
+    document.getElementById('prompt-modal').style.display = 'flex'; 
+    setTimeout(() => input.focus(), 100); 
+}
 function closePrompt() { promptCallback = null; document.getElementById('prompt-modal').style.display = 'none'; }
 function submitPrompt() { const val = document.getElementById('prompt-input').value; const cb = promptCallback; closePrompt(); if (typeof cb === 'function') cb(val); }
 function showAlert(title, message, onOk) { alertCallback = onOk; document.getElementById('alert-title').textContent = title; document.getElementById('alert-message').textContent = message; document.getElementById('alert-modal').style.display = 'flex'; document.getElementById('alert-cancel-btn').style.display = 'block'; }
@@ -821,24 +829,29 @@ document.addEventListener('touchend', (e) => {
         }
     }
 }, { passive: true });
-function handleEdgeBack() {
-    if (document.getElementById('confirm-modal').style.display === 'flex') { closeConfirm(); return; }
-    if (document.getElementById('prompt-modal').style.display === 'flex') { closePrompt(); return; }
-    if (document.getElementById('alert-modal').style.display === 'flex') { closeAlert(false); return; }
-    if (document.getElementById('date-picker-modal').style.display === 'flex') { closeDatePicker(); return; }
-    if (document.getElementById('template-modal').style.display === 'flex') { closeTemplateModal(); return; }
-    if (document.getElementById('pattern-lock-modal').style.display === 'flex') { closePatternLock(); return; }
-    if (document.getElementById('crop-overlay').style.display === 'flex') { cancelWallpaper(); return; }
-    if (document.getElementById('side-drawer').classList.contains('open')) { closeDrawer(); return; }
-    if (document.getElementById('diary-panel').classList.contains('open')) { closeDiaryPanel(); return; }
-    if (document.getElementById('page-important-dates').classList.contains('active')) {
-        if (document.getElementById('important-list-view').style.display === 'block') { exitImportantList(); return; }
-    }
-    const activePage = document.querySelector('.page.active')?.id; if (!activePage) return;
-    const backMap = {
-        'page-add': () => switchPage('page-all-items'), 'page-add-gift': () => switchPage('page-gift-record'), 'page-gift-detail': () => switchPage('page-gift-record'), 'page-event-detail': () => switchPage('page-gift-detail'), 'page-add-event': () => switchPage('page-gift-detail'), 'page-add-important': () => switchPage('page-important-dates'), 'page-important-detail': () => backFromImportantDetail(), 'page-book-list': () => switchPage('page-home'), 'page-book-view': () => switchPage('page-home'), 'page-book-detail': () => switchPage('page-book-list'), 'page-item-distribution': () => switchPage('page-all-items'), 'page-gift-distribution': () => switchPage('page-gift-record'), 'page-diary-list': () => backFromImportantDetail(), 'page-diary-view': () => backToDiaryList(), 'page-diary-edit': () => cancelDiaryEdit(), 'page-profile': () => switchPage('page-home'), 'page-theme': () => switchPage('page-home'), 'page-backup': () => switchPage('page-home'), 'page-lock': () => switchPage('page-home'), 'page-about': () => switchPage('page-home')
-    };
-    if (backMap[activePage]) { backMap[activePage](); }
+function handleEditYear() {
+    const currentPhoto = window._currentAlbumPhotos[_fullScreenIndex];
+    if (!currentPhoto) return;
+    
+    // 1. 立即关闭大图
+    document.getElementById('global-image-preview').classList.remove('show');
+    
+    // 2. 弹窗，默认值传空，最后加上灰色提示字
+    showPrompt('修改年份', '', (newYearStr) => {
+        if (!newYearStr) return;
+        const newYear = parseInt(newYearStr);
+        if (isNaN(newYear)) { showToast('年份格式错误', 'error'); return; }
+        
+        let dates = getImportantDates();
+        let item = dates.find(d => d.id === _fullScreenItemId);
+        if (item) {
+            let photo = item.photos.find(p => p.key === currentPhoto.key);
+            if (photo) photo.year = newYear;
+            localStorage.setItem('myImportantDates', JSON.stringify(dates));
+            showToast('年份修改成功');
+            renderAnniversaryAlbum(_fullScreenItemId);
+        }
+    }, '请输入年份（如 2024）');
 }
 // ================= 通用图片压缩与日期选择器 =================
 function compressImage(base64Str, maxWidth, callback) {

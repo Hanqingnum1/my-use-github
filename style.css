@@ -31,21 +31,21 @@ body {
 }
 .page { display: none; padding: 20px 16px; }
 
-/* 定义丝滑上浮动画 */
+/* 定义丝滑上浮动画（弃用 transform 避免 fixed 元素跟随位移） */
 @keyframes slideUpFade {
     from {
         opacity: 0;
-        transform: translateY(20px);
+        margin-top: 20px;
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        margin-top: 0;
     }
 }
 
 .page.active { 
     display: block; 
-    animation: slideUpFade 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    animation: slideUpFade 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .card { background: var(--card-bg); border-radius: 20px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.03); margin-bottom: 16px; }
 .home-header { display: flex; align-items: center; margin-bottom: 20px; padding: 0 6px; }
@@ -334,12 +334,15 @@ input::placeholder { color: #bbb; }
 body.dark-mode .side-drawer { background: var(--card-bg); }
 body.dark-mode .cal-cell { background: var(--card-bg); }
 body.dark-mode .cal-cell.has-event { background: #3a3438; }
-body.dark-mode .important-card.level-提醒 { background: #3a2828; }
-body.dark-mode .important-card.level-重要 { background: #3a2424; }
-body.dark-mode .important-card.level-非常重要 { background: #322838; }
-body.dark-mode .upcoming-card {
-    background: linear-gradient(135deg, #3a3428, #4a3e28);
-}
+body.dark-mode .important-card.level-提醒    { background: #2e2438 !important; border-left-color: #9b59b6 !important; }
+body.dark-mode .important-card.level-重要    { background: #3a2424 !important; border-left-color: #e57373 !important; }
+body.dark-mode .important-card.level-非常重要 { background: #3a1f24 !important; border-left-color: #e53935 !important; }
+body.dark-mode .upcoming-card.level-提醒    { background: linear-gradient(135deg, #2e2438, #3a2a44) !important; border-left-color: #9b59b6 !important; }
+body.dark-mode .upcoming-card.level-重要    { background: linear-gradient(135deg, #3a2424, #4a2c2c) !important; border-left-color: #e57373 !important; }
+body.dark-mode .upcoming-card.level-非常重要 { background: linear-gradient(135deg, #3a1f24, #4a2428) !important; border-left-color: #e53935 !important; }
+body.dark-mode .upcoming-card { background: linear-gradient(135deg, #3a3428, #4a3e28); }
+body.dark-mode .upcoming-card.is-birthday    { background: linear-gradient(135deg, #3a2433, #4a2c3a) !important; border-left-color: #e91e63 !important; }
+body.dark-mode .upcoming-card.is-anniversary { background: linear-gradient(135deg, #2e2438, #3a2a44) !important; border-left-color: #9c27b0 !important; }
 
 /* =============== 看书进度条 =============== */
 .progress-bar-bg {
@@ -1726,3 +1729,153 @@ body.multi-select-mode .floating-add-btn {
 }
 .cal-slide-left { animation: slideLeft 0.3s ease-out forwards; }
 .cal-slide-right { animation: slideRight 0.3s ease-out forwards; }
+
+/* =============== 阳历/阴历 分段切换控件 =============== */
+#lunar-type-chips {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 0;
+    background: var(--bg-color);
+    border: 1px solid var(--divider);
+    border-radius: 14px;
+    padding: 4px;
+    margin-top: 4px;
+}
+#lunar-type-chips .chip {
+    flex: 0 0 auto;
+    min-width: 88px;
+    padding: 10px 22px;
+    border: none;
+    background: transparent;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-sub);
+    text-align: center;
+    transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#lunar-type-chips .chip:active {
+    background: rgba(0, 0, 0, 0.03);
+}
+#lunar-type-chips .chip.active {
+    background: var(--card-bg);
+    color: var(--primary);
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(217, 136, 128, 0.25);
+}
+body.dark-mode #lunar-type-chips {
+    background: #2e2e34;
+}
+body.dark-mode #lunar-type-chips .chip.active {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(217, 136, 128, 0.45);
+}
+
+/* 阴历月份/日期下拉美化 */
+#lunar-month-select,
+#lunar-day-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
+    text-align: left;
+    font-weight: 600;
+}
+
+/* =============== 纪念日卡片照片背景（方案A） =============== */
+.important-card.has-photo-bg {
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+}
+.important-card.has-photo-bg .important-card-name,
+.important-card.has-photo-bg .important-card-date {
+    text-shadow: 0 1px 2px rgba(255,255,255,0.65);
+}
+body.dark-mode .important-card.has-photo-bg .important-card-name,
+body.dark-mode .important-card.has-photo-bg .important-card-date {
+    text-shadow: 0 1px 2px rgba(0,0,0,0.65);
+}
+/* =============== 生日专属精美背景（本地内联，不依赖网络） =============== */
+.upcoming-card.is-birthday,
+.important-card.is-birthday {
+    position: relative;
+    background-color: #fff0f5 !important;
+    background-image:
+        /* 右上角气球光斑 */
+        radial-gradient(circle at 92% 22%, rgba(255,107,157,0.55) 0, rgba(255,107,157,0.55) 18px, transparent 19px),
+        radial-gradient(circle at 78% 28%, rgba(255,168,197,0.5) 0, rgba(255,168,197,0.5) 14px, transparent 15px),
+        /* 左下角小气球 */
+        radial-gradient(circle at 8% 86%, rgba(240,98,146,0.42) 0, rgba(240,98,146,0.42) 12px, transparent 13px),
+        /* 星星点缀 */
+        radial-gradient(circle at 24% 30%, #ffd54f 0, #ffd54f 1.5px, transparent 2px),
+        radial-gradient(circle at 48% 58%, #ffd54f 0, #ffd54f 1px, transparent 1.5px),
+        radial-gradient(circle at 66% 22%, #ffd54f 0, #ffd54f 1.5px, transparent 2px),
+        radial-gradient(circle at 84% 72%, #ffd54f 0, #ffd54f 1px, transparent 1.5px),
+        radial-gradient(circle at 34% 82%, #ffd54f 0, #ffd54f 1px, transparent 1.5px),
+        /* 底色渐变 */
+        linear-gradient(135deg, #fff5f8 0%, #ffe4ec 55%, #ffd1dc 100%) !important;
+    border-left: 4px solid #e91e63 !important;
+    box-shadow: 0 4px 18px rgba(233,30,99,0.15) !important;
+    overflow: hidden;
+}
+.upcoming-card.is-birthday::before,
+.important-card.is-birthday::before {
+    content: '🎂';
+    position: absolute;
+    right: 10px;
+    bottom: 6px;
+    font-size: 26px;
+    opacity: 0.45;
+    pointer-events: none;
+    transform: rotate(-8deg);
+}
+/* 深色模式适配 */
+body.dark-mode .upcoming-card.is-birthday,
+body.dark-mode .important-card.is-birthday {
+    background-color: #3a2030 !important;
+    background-image:
+        radial-gradient(circle at 92% 22%, rgba(255,107,157,0.42) 0, rgba(255,107,157,0.42) 18px, transparent 19px),
+        radial-gradient(circle at 78% 28%, rgba(255,168,197,0.35) 0, rgba(255,168,197,0.35) 14px, transparent 15px),
+        radial-gradient(circle at 8% 86%, rgba(240,98,146,0.32) 0, rgba(240,98,146,0.32) 12px, transparent 13px),
+        radial-gradient(circle at 24% 30%, #ffd54f 0, #ffd54f 1.5px, transparent 2px),
+        radial-gradient(circle at 48% 58%, #ffd54f 0, #ffd54f 1px, transparent 1.5px),
+        radial-gradient(circle at 66% 22%, #ffd54f 0, #ffd54f 1.5px, transparent 2px),
+        radial-gradient(circle at 84% 72%, #ffd54f 0, #ffd54f 1px, transparent 1.5px),
+        radial-gradient(circle at 34% 82%, #ffd54f 0, #ffd54f 1px, transparent 1.5px),
+        linear-gradient(135deg, #3a2432 0%, #4a2c3e 55%, #5a3450 100%) !important;
+    border-left: 4px solid #f06292 !important;
+    box-shadow: 0 4px 18px rgba(240,98,146,0.18) !important;
+}
+body.dark-mode .upcoming-card.is-birthday::before,
+body.dark-mode .important-card.is-birthday::before {
+    opacity: 0.55;
+}
+
+/* =============== 终极修复悬浮添加按钮 =============== */
+.floating-add-btn {
+    position: fixed !important;
+    right: 20px !important;
+    bottom: 110px !important; /* 刚好在底部导航栏上方 */
+    left: auto !important;
+    z-index: 9999 !important;
+    padding: 12px 22px !important;
+    border-radius: 26px !important;
+    /* 防止文字竖排换行 */
+    white-space: nowrap !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
+}
+
+/* 大屏 (平板/电脑) 时居中适配 */
+@media (min-width: 540px) {
+    .floating-add-btn {
+        right: calc(50vw - 234px) !important;
+    }
+}

@@ -1,4 +1,33 @@
 // ================= 重要日期版块 =================
+// 问题2：切换页面时，重置日历选中状态，恢复“今天”
+(function () {
+    if (typeof window.switchPage === 'function' && !window._importantSwitchWrapped) {
+        window._importantSwitchWrapped = true;
+        const _origSwitchPage = window.switchPage;
+        window.switchPage = function (pageId) {
+            if (pageId === 'page-important-dates') { selectedCalDate = null; }
+            return _origSwitchPage.apply(this, arguments);
+        };
+    }
+})();
+
+// 问题4：计算生日/纪念日在指定年份的日期（解决日历不显示）
+function getEventDateInYear(item, year) {
+    if (item.type !== '生日' && item.type !== '纪念日') return item.date;
+    if (item.type === '生日' && item.calendarType === '阴历' && item.lunarMonth && item.lunarDay) {
+        try {
+            const solar = Lunar.fromYmd(year, item.lunarMonth, item.lunarDay).getSolar();
+            return `${solar.getYear()}-${String(solar.getMonth()).padStart(2, '0')}-${String(solar.getDay()).padStart(2, '0')}`;
+        } catch (e) { return null; }
+    }
+    const start = new Date(item.date); let m = start.getMonth() + 1, day = start.getDate();
+    if (m === 2 && day === 29) {
+        const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+        if (!isLeap) { m = 3; day = 1; }
+    }
+    return `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 function getImportantDates() { return JSON.parse(localStorage.getItem('myImportantDates')) || []; }
 function selectLevel(level) {
     selectedImportantLevel = level;
@@ -102,7 +131,10 @@ function renderUpcomingDates() {
     if (upcoming.length === 0) { section.innerHTML = ''; return; }
     let html = `<div class="card"><h3 style="margin-bottom:12px;">${T('马上要发生 👇')}</h3>`;
     upcoming.forEach(d => {
-        let extraClass = ''; if (d.type === '生日') extraClass = 'is-birthday'; else if (d.type === '纪念日') extraClass = 'is-anniversary';
+        let extraClass = '';
+        if (d.type === '生日') extraClass = 'is-birthday';
+        else if (d.type === '纪念日') extraClass = 'is-anniversary';
+        extraClass += ` level-${d.level}`;
         let icon = d.type === '生日' ? '🎂' : (d.type === '纪念日' ? '💖' : '');
         html += `<div class="upcoming-card ${extraClass}" onclick="showImportantDetail(${d.id})"><div class="upcoming-info"><div class="upcoming-event">${d.person ? `[${d.person}] ` : ''}${icon} ${T(d.event)}</div><div class="upcoming-date">${d.nextStr} · ${T(d.level)}</div></div><div class="upcoming-days">${d.days}<small>${T('天后')}</small></div></div>`;
     });
@@ -143,7 +175,7 @@ function renderCalendar() {
                 if (typeof showToast === 'function') showToast('农历解析失败', 'error');
             }
         }
-        const dayEvents = dates.filter(dt => { const nextDate = getNextOccurrenceDate(dt); return nextDate !== null && nextDate === dateStr; });
+        const dayEvents = dates.filter(dt => getEventDateInYear(dt, calYear) === dateStr);
         const hasBirthday = dayEvents.some(ev => ev.type === '生日'); const hasAnniversary = dayEvents.some(ev => ev.type === '纪念日'); let cellExtraClass = '';
         if (hasBirthday) cellExtraClass += ' has-birthday'; if (hasAnniversary) cellExtraClass += ' has-anniversary';
         let eventsHtml = '';
@@ -168,6 +200,7 @@ function renderCalendar() {
         cell.addEventListener('touchstart', startPress, { passive: false }); cell.addEventListener('touchmove', movePress, { passive: true }); cell.addEventListener('touchend', endPress); cell.addEventListener('touchcancel', cancelPress);
         cell.addEventListener('mousedown', startPress); cell.addEventListener('mouseup', endPress); cell.addEventListener('mouseleave', cancelPress);
     });
+    bindCalendarSwipe();
 }
 function renderUpcoming7Days() {
     const list = document.getElementById('upcoming-7days-list'); if (!list) return;
@@ -196,7 +229,8 @@ function selectCalDay(dateStr) {
     const sel = window.getSelection && window.getSelection(); if (sel) sel.removeAllRanges(); if (isLongPress) { isLongPress = false; return; }
     const now = new Date(); const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; selectedCalDate = (dateStr === todayStr) ? null : dateStr; renderCalendar();
     const detail = document.getElementById('important-detail-card');
-    const dates = getImportantDates().filter(d => getNextOccurrenceDate(d) === dateStr); const diaries = getDiaries().filter(d => d.date === dateStr);
+    const _selYear = parseInt(dateStr.slice(0, 4), 10);
+    const dates = getImportantDates().filter(d => getEventDateInYear(d, _selYear) === dateStr); const diaries = getDiaries().filter(d => d.date === dateStr);
     const dayDiaries = diaries.filter(d => d.type === '日记'); const dayNotes = diaries.filter(d => d.type === '便签');
     if (dates.length === 0 && diaries.length === 0) { detail.style.display = 'none'; return; }
     let html = '';
@@ -248,4 +282,27 @@ function renderImportantList() {
         else { div.onclick = () => showImportantDetail(d.id); bindLongPress(div, () => { showConfirm(T('删除重要日期'), T('确定删除「{name}」吗？', { name: T(d.event) }), () => { let dates2 = getImportantDates().filter(x => x.id !== d.id); localStorage.setItem('myImportantDates', JSON.stringify(dates2)); showToast(T('已删除')); renderImportantList(); renderCalendar(); renderUpcomingDates(); }); }); }
         container.appendChild(div);
     });
+}
+// 问题5：月日历卡片左右滑动切换月份
+let _calSwipeStartX = 0, _calSwipeStartY = 0, _calSwipeTracking = false, _calSwipeBound = false;
+function bindCalendarSwipe() {
+    if (_calSwipeBound) return;
+    const el = document.getElementById('calendar-view');
+    if (!el) return;
+    _calSwipeBound = true;
+    el.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const x = e.touches[0].clientX;
+        if (x < 30 || x > window.innerWidth - 30) { _calSwipeTracking = false; return; }
+        _calSwipeStartX = x; _calSwipeStartY = e.touches[0].clientY; _calSwipeTracking = true;
+    }, { passive: true });
+    el.addEventListener('touchend', (e) => {
+        if (!_calSwipeTracking) return;
+        _calSwipeTracking = false;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - _calSwipeStartX; const dy = t.clientY - _calSwipeStartY;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            if (dx < 0) changeMonth(1); else changeMonth(-1);
+        }
+    }, { passive: true });
 }

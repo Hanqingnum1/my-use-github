@@ -28,11 +28,69 @@ function renderEventPhotoSlot(i) {
     else { p.style.display='none'; if(ph) ph.style.display='flex'; if(rb) rb.style.display='none'; }
 }
 function removeEventPhoto(i, ev) { if (ev) ev.stopPropagation(); eventPhotos[i] = ''; const input = document.getElementById('event-image-' + i); if (input) input.value = ''; renderEventPhotoSlot(i); }
+let giftChartMode = 'type';
+
+function switchGiftChart(mode) {
+    giftChartMode = mode;
+    document.querySelectorAll('#gift-chart-chips .chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.mode === mode);
+    });
+    initGiftChart();
+}
+
 function initGiftChart() {
-    const giftEl = document.getElementById('gift-chart-container'); if (!giftEl) return; if (myGiftChart) myGiftChart.dispose(); myGiftChart = echarts.init(giftEl);
-    const cc = {}; getGiftRecords().forEach(r => (r.events || []).forEach(e => { const ev = e.event || '未分类'; cc[ev] = (cc[ev] || 0) + (e.amount || 0); }));
-    const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
-    myGiftChart.setOption({ tooltip: { trigger: 'item', formatter: '{b}: ¥{c}' }, legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 12, icon: 'circle', textStyle: { fontSize: 11 } }, color: ['#f5b7b1', '#f7dc6f', '#82c8a0', '#85c1e9', '#bb8fce', '#f5b041', '#d98880', '#aed6f1'], series: [{ name: T('随礼分布'), type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: data.length > 0 ? data : [{ value: 0, name: T('暂无数据'), itemStyle: { color: '#eee' } }] }] });
+    const container = document.getElementById('gift-chart-container');
+    if (!container) return;
+    
+    // 修复白屏延迟
+    if (container.clientWidth === 0) {
+        setTimeout(initGiftChart, 200);
+        return;
+    }
+
+    if (myGiftChart) { myGiftChart.dispose(); }
+    myGiftChart = echarts.init(container);
+
+    const records = getGiftRecords();
+    let chartData = [];
+
+    if (giftChartMode === 'type') {
+        let give = 0, receive = 0;
+        records.forEach(r => {
+            if (r.type === '随礼') give += Number(r.amount) || 0;
+            else receive += Number(r.amount) || 0;
+        });
+        chartData = [{ name: '随礼', value: give }, { name: '收礼', value: receive }];
+    } else if (giftChartMode === 'event') {
+        const map = {};
+        records.forEach(r => { 
+            const ev = r.event || '其他';
+            map[ev] = (map[ev] || 0) + (Number(r.amount) || 0); 
+        });
+        chartData = Object.keys(map).map(key => ({ name: key, value: map[key] }));
+    } else if (giftChartMode === 'time') {
+        const map = {};
+        records.forEach(r => { 
+            const year = (r.date || '').slice(0, 4);
+            if (year) map[year] = (map[year] || 0) + (Number(r.amount) || 0); 
+        });
+        chartData = Object.keys(map).sort().map(key => ({ name: key + '年', value: map[key] }));
+    }
+
+    const option = {
+        tooltip: { trigger: 'item', formatter: '{b}: ¥{c}' },
+        legend: { bottom: '5%', left: 'center', icon: 'circle', textStyle: { fontSize: 12 } },
+        series: [{
+            name: '礼金分布',
+            type: 'pie',
+            radius: ['40%', '70%'],
+            itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+            label: { show: false },
+            data: chartData
+        }]
+    };
+    myGiftChart.setOption(option);
+    setTimeout(() => myGiftChart.resize(), 100);
 }
 function getGiftRecords() { return JSON.parse(localStorage.getItem('myGiftRecords')) || []; }
 function saveGiftPerson() {

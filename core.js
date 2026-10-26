@@ -197,6 +197,14 @@ function switchPage(pageId) {
     document.body.style.setProperty('--page-color', pageColor);
     document.body.style.setProperty('--nav-active-color', pageColor);
     window.scrollTo(0, 0);
+    
+    // 修复图表在隐藏状态下初始化导致空白的问题
+    if (pageId === 'page-item-distribution' && typeof myChart !== 'undefined' && myChart) {
+        setTimeout(() => myChart.resize(), 150);
+    }
+    if (pageId === 'page-gift-distribution' && typeof myGiftChart !== 'undefined' && myGiftChart) {
+        setTimeout(() => myGiftChart.resize(), 150);
+    }
 }
 
 // ================= 抽屉/主题/备份/应用锁等 (将原代码对应的函数全部粘贴在此) =================
@@ -311,16 +319,167 @@ function applyCustomIcons() {
 }
 function clearCustomIcons() { if (!confirm(T('确定要重置自定义图标吗？'))) return; localStorage.removeItem('myCustomIcons'); iconSrcImage = null; selectedIconCells = []; document.getElementById('icon-selector-area').style.display = 'none'; applyCustomIcons(); }
 function updateStorageUsage() { let total = 0; for (let k in localStorage) { if (localStorage.hasOwnProperty(k)) { total += new Blob([k + localStorage[k]]).size; } } document.getElementById('storage-usage').textContent = (total / 1024).toFixed(1) + ' KB'; }
-function exportData() {
-    const data = { items: JSON.parse(localStorage.getItem('myItems') || '[]'), giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'), importantDates: JSON.parse(localStorage.getItem('myImportantDates') || '[]'), diaries: JSON.parse(localStorage.getItem('myDiaries') || '[]'), books: JSON.parse(localStorage.getItem('myBooks') || '[]'), customIcons: JSON.parse(localStorage.getItem('myCustomIcons') || '{}'), lock: JSON.parse(localStorage.getItem('myLock') || '{}'), profile: getProfile(), theme: getTheme() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'my-life-backup-' + Date.now() + '.json'; a.click(); URL.revokeObjectURL(url);
+// ================== 导出与导入逻辑重构 ==================
+
+// 1. 生成可读的 CSV / TXT 文本
+function generateReadableData() {
+    const items = JSON.parse(localStorage.getItem('myItems') || '[]');
+    const gifts = JSON.parse(localStorage.getItem('myGiftRecords') || '[]');
+    const dates = JSON.parse(localStorage.getItem('myImportantDates') || '[]');
+    const books = JSON.parse(localStorage.getItem('myBooks') || '[]');
+    const diaries = JSON.parse(localStorage.getItem('myDiaries') || '[]');
+
+    let text = `【我的生活 - 数据备份】\n导出时间：${new Date().toLocaleString()}\n\n`;
+
+    text += `================== 物品记录 ==================\n`;
+    text += `名称, 数量, 分类, 价格, 状态, 购买日期\n`;
+    items.forEach(i => {
+        text += `"${i.name || ''}", ${i.quantity || 1}, "${i.category || ''}", ${i.price || 0}, "${i.status || '持有中'}", "${i.purchaseDate || i.date || ''}"\n`;
+    });
+    text += `\n`;
+
+    text += `================== 随礼记录 ==================\n`;
+    text += `人员, 类型, 事件, 金额, 日期\n`;
+    gifts.forEach(g => {
+        text += `"${g.person || ''}", "${g.type || '随礼'}", "${g.event || ''}", ${g.amount || 0}, "${g.date || ''}"\n`;
+    });
+    text += `\n`;
+
+    text += `================== 重要日期 ==================\n`;
+    text += `人物, 事件, 日期, 类型, 重要程度\n`;
+    dates.forEach(d => {
+        text += `"${d.person || ''}", "${d.event || ''}", "${d.date || ''}", "${d.type || '普通'}", "${d.level || '提醒'}"\n`;
+    });
+    text += `\n`;
+
+    text += `================== 阅读记录 ==================\n`;
+    text += `书名, 总页数, 当前页数, 状态\n`;
+    books.forEach(b => {
+        text += `"${b.name || ''}", ${b.totalPages || 0}, ${b.currentPages || 0}, "${b.status || '在读'}"\n`;
+    });
+    text += `\n`;
+
+    text += `================== 日记与便签 ==================\n`;
+    text += `日期, 类型, 标题, 内容\n`;
+    diaries.forEach(d => {
+        // 清理内容里的换行符，防止破坏 CSV 格式
+        const safeContent = (d.content || '').replace(/\n/g, ' ');
+        text += `"${d.date || ''}", "${d.type || '日记'}", "${d.title || ''}", "${safeContent}"\n`;
+    });
+
+    return text;
 }
-function importData(input) {
-    if (!input.files[0]) return; const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-            if (data) {
+
+// 2. 导出数据主弹窗
+function exportData() {
+    let overlay = document.getElementById('export-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'export-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:99999;display:flex;flex-direction:column;padding:20px;box-sizing:border-box;';
+        
+        const title = document.createElement('div');
+        title.innerText = '请长按下方文本框全选复制，或点击一键复制';
+        title.style.cssText = 'color:white;font-size:15px;margin-bottom:10px;text-align:center;font-weight:bold;';
+        
+        const textarea = document.createElement('textarea');
+        textarea.id = 'export-textarea';
+        textarea.style.cssText = 'flex:1;width:100%;border-radius:12px;padding:12px;font-size:12px;font-family:monospace;resize:none;line-height:1.5;';
+        
+        const btnGroup = document.createElement('div');
+        btnGroup.style.cssText = 'display:flex;gap:10px;margin-top:15px;';
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.innerText = '一键复制';
+        copyBtn.style.cssText = 'flex:1;padding:14px;background:var(--primary,#d98880);color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
+        copyBtn.onclick = () => {
+            const ta = document.getElementById('export-textarea');
+            ta.select();
+            ta.setSelectionRange(0, 999999); // 针对移动端
+            document.execCommand('copy');
+            if (typeof showToast === 'function') showToast('已复制到剪贴板！');
+        };
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.innerText = '关闭';
+        closeBtn.style.cssText = 'flex:1;padding:14px;background:#555;color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
+        closeBtn.onclick = () => { overlay.style.display = 'none'; };
+        
+        btnGroup.appendChild(copyBtn);
+        btnGroup.appendChild(closeBtn);
+        overlay.appendChild(title);
+        overlay.appendChild(textarea);
+        overlay.appendChild(btnGroup);
+        document.body.appendChild(overlay);
+
+        // 菜单选择：JSON 还是 CSV
+        const choice = confirm("点击【确定】导出用于换手机迁移的数据 (JSON)\n点击【取消】导出用于查看或Excel打开的文本 (CSV)");
+        if (choice) {
+            const data = { 
+                items: JSON.parse(localStorage.getItem('myItems') || '[]'), 
+                giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'), 
+                importantDates: JSON.parse(localStorage.getItem('myImportantDates') || '[]'), 
+                diaries: JSON.parse(localStorage.getItem('myDiaries') || '[]'), 
+                books: JSON.parse(localStorage.getItem('myBooks') || '[]'), 
+                customIcons: JSON.parse(localStorage.getItem('myCustomIcons') || '{}'), 
+                lock: JSON.parse(localStorage.getItem('myLock') || '{}'), 
+                profile: getProfile(), 
+                theme: getTheme() 
+            };
+            textarea.value = JSON.stringify(data, null, 2);
+        } else {
+            textarea.value = generateReadableData();
+        }
+    }
+    // 每次点击重新判断
+    const choice = confirm("点击【确定】导出用于换手机迁移的数据 (JSON)\n点击【取消】导出用于查看或Excel打开的文本 (CSV)");
+    if (choice) {
+        const data = { 
+            items: JSON.parse(localStorage.getItem('myItems') || '[]'), 
+            giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'), 
+            importantDates: JSON.parse(localStorage.getItem('myImportantDates') || '[]'), 
+            diaries: JSON.parse(localStorage.getItem('myDiaries') || '[]'), 
+            books: JSON.parse(localStorage.getItem('myBooks') || '[]'), 
+            customIcons: JSON.parse(localStorage.getItem('myCustomIcons') || '{}'), 
+            lock: JSON.parse(localStorage.getItem('myLock') || '{}'), 
+            profile: getProfile(), 
+            theme: getTheme() 
+        };
+        document.getElementById('export-textarea').value = JSON.stringify(data, null, 2);
+    } else {
+        document.getElementById('export-textarea').value = generateReadableData();
+    }
+    overlay.style.display = 'flex';
+}
+
+// 3. 导入数据弹窗 (粘贴模式)
+function showImportModal() {
+    let overlay = document.getElementById('import-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'import-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:99999;display:flex;flex-direction:column;padding:20px;box-sizing:border-box;';
+        
+        const title = document.createElement('div');
+        title.innerText = '请将之前复制的 JSON 数据粘贴到下方：';
+        title.style.cssText = 'color:white;font-size:15px;margin-bottom:10px;text-align:center;font-weight:bold;';
+        
+        const textarea = document.createElement('textarea');
+        textarea.id = 'import-textarea';
+        textarea.placeholder = '在此粘贴 JSON 代码...';
+        textarea.style.cssText = 'flex:1;width:100%;border-radius:12px;padding:12px;font-size:12px;font-family:monospace;resize:none;line-height:1.5;';
+        
+        const btnGroup = document.createElement('div');
+        btnGroup.style.cssText = 'display:flex;gap:10px;margin-top:15px;';
+        
+        const importBtn = document.createElement('button');
+        importBtn.innerText = '确认导入';
+        importBtn.style.cssText = 'flex:1;padding:14px;background:var(--primary,#d98880);color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
+        importBtn.onclick = () => {
+            const val = document.getElementById('import-textarea').value.trim();
+            if (!val) return;
+            try {
+                const data = JSON.parse(val);
                 showAlert(T('导入数据'), T('导入会覆盖当前数据，是否继续？'), () => {
                     if (data.items) localStorage.setItem('myItems', JSON.stringify(data.items));
                     if (data.giftRecords) localStorage.setItem('myGiftRecords', JSON.stringify(data.giftRecords));
@@ -331,12 +490,27 @@ function importData(input) {
                     if (data.lock) localStorage.setItem('myLock', JSON.stringify(data.lock));
                     if (data.profile) localStorage.setItem('myProfile', JSON.stringify(data.profile));
                     if (data.theme) localStorage.setItem('myTheme', JSON.stringify(data.theme));
-                    showToast(T('导入成功！')); location.reload();
+                    showToast(T('导入成功！')); 
+                    setTimeout(() => location.reload(), 1000);
                 });
+            } catch (err) {
+                showToast('格式错误，请检查粘贴的内容', 'error');
             }
-        } catch (err) { showToast(T('文件格式错误！'), 'error'); }
-    };
-    reader.readAsText(input.files[0]);
+        };
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.innerText = '取消';
+        closeBtn.style.cssText = 'flex:1;padding:14px;background:#555;color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
+        closeBtn.onclick = () => { overlay.style.display = 'none'; document.getElementById('import-textarea').value = ''; };
+        
+        btnGroup.appendChild(importBtn);
+        btnGroup.appendChild(closeBtn);
+        overlay.appendChild(title);
+        overlay.appendChild(textarea);
+        overlay.appendChild(btnGroup);
+        document.body.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
 }
 function clearAllData() { showAlert(T('清空数据'), T('确定要清空所有数据吗？此操作不可恢复！'), () => { ['myItems','myGiftRecords','myImportantDates','myProfile','myTheme','myDiaries','myBooks','myCustomIcons','myLock'].forEach(k => localStorage.removeItem(k)); showToast(T('已清空')); location.reload(); }); }
 function getLockSettings() { return JSON.parse(localStorage.getItem('myLock')) || { type: '' }; }

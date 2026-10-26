@@ -69,8 +69,8 @@ body {
 .hero-value { font-size: 36px; font-weight: bold; margin: 12px 0; }
 .hero-footer { font-size: 12px; opacity: 0.85; }
 .hero-gift { background: linear-gradient(135deg, #f5b7b1, #d98880) !important; box-shadow: 0 6px 20px rgba(217, 136, 128, 0.35) !important; }
-.quick-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-.quick-item { flex: 1; min-width: 70px; padding: 10px 4px; text-align: center; cursor: pointer; border-radius: 14px; }
+.quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.quick-item { padding: 10px 4px; text-align: center; cursor: pointer; border-radius: 14px; }
 .quick-item:active { background: rgba(0,0,0,0.03); }
 .quick-icon { display: inline-flex; justify-content: center; align-items: center; width: 46px; height: 46px; border-radius: 14px; font-size: 22px; margin-bottom: 6px; }
 .quick-item > span { font-size: 12px; font-weight: 500; color: var(--text-main); display: block; }
@@ -1592,4 +1592,34 @@ body.multi-select-mode .floating-add-btn {
 }
 .cal-cell.has-anniversary {
     background: #f9f0ff !important;
+}
+/* 问题6：列表卡片整块背景按重要程度上色（紫色主题） */
+.important-card.level-提醒    { background: #f3e8ff !important; border-left-color: #9b59b6 !important; }
+.important-card.level-重要    { background: #ffe8e4 !important; border-left-color: #e57373 !important; }
+.important-card.level-非常重要 { background: #ffcdd2 !important; border-left-color: #e53935 !important; }
+
+/* 问题7：主页“马上要发生”卡片按程度上色 */
+.upcoming-card.level-提醒    { background: #f3e8ff !important; border-left-color: #9b59b6 !important; }
+.upcoming-card.level-重要    { background: #ffe8e4 !important; border-left-color: #e57373 !important; }
+.upcoming-card.level-非常重要 { background: #ffcdd2 !important; border-left-color: #e53935 !important; }
+/* 保持生日和纪念日的专属色覆盖 */
+.upcoming-card.is-birthday    { background: linear-gradient(135deg, #fce4ec, #f8bbd0) !important; border-left-color: #e91e63 !important; }
+.upcoming-card.is-anniversary { background: linear-gradient(135deg, #f3e5f5, #e1bee7) !important; border-left-color: #9c27b0 !important; }
+
+/* 问题8：重要日期列表的筛选按钮压成一行，可横向滑动 */
+#important-filter-chips {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding: 4px 0;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+#important-filter-chips::-webkit-scrollbar { display: none; }
+#important-filter-chips .chip {
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-size: 13px;
+    padding: 4px 12px;
 }

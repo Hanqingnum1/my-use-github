@@ -182,9 +182,55 @@ function editItem(id) {
     const delBtn = document.getElementById('item-delete-btn'); if (delBtn) delBtn.style.display = 'block';
     switchPage('page-add');
 }
+let itemChartMode = 'category'; // 默认按分类
+
+function switchItemChart(mode) {
+    itemChartMode = mode;
+    document.querySelectorAll('#item-chart-chips .chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.mode === mode);
+    });
+    initItemChart();
+}
+
 function initItemChart() {
-    const itemEl = document.getElementById('item-chart-container'); if (!itemEl) return; if (myChart) myChart.dispose(); myChart = echarts.init(itemEl);
-    const cc = {}; getItems().forEach(i => { const cat = i.category || '未分类'; cc[cat] = (cc[cat] || 0) + 1; });
-    const data = Object.keys(cc).map(k => ({ name: k, value: cc[k] }));
-    myChart.setOption({ tooltip: { trigger: 'item' }, legend: { orient: 'vertical', right: '5%', top: 'middle', itemGap: 12, icon: 'circle', textStyle: { fontSize: 11 } }, color: ['#d98880', '#85c1e9', '#82c8a0', '#f7dc6f', '#bb8fce', '#f5b041', '#f5b7b1', '#aed6f1'], series: [{ name: T('物品分布'), type: 'pie', radius: ['50%', '75%'], center: ['35%', '50%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: data.length > 0 ? data : [{ value: 0, name: T('暂无数据'), itemStyle: { color: '#eee' } }] }] });
+    const container = document.getElementById('item-chart-container');
+    if (!container) return;
+    
+    // 修复：防止在隐藏页面初始化导致白屏
+    if (container.clientWidth === 0) {
+        setTimeout(initItemChart, 200);
+        return;
+    }
+
+    if (myChart) { myChart.dispose(); }
+    myChart = echarts.init(container);
+
+    const items = getItems().filter(i => i.status !== '已移除'); // 统计有效物品
+    let chartData = [];
+
+    if (itemChartMode === 'category') {
+        const map = {};
+        items.forEach(i => { map[i.category || '未分类'] = (map[i.category || '未分类'] || 0) + 1; });
+        chartData = Object.keys(map).map(key => ({ name: key, value: map[key] }));
+    } else if (itemChartMode === 'status') {
+        const map = {};
+        getItems().forEach(i => { map[i.status || '持有中'] = (map[i.status || '持有中'] || 0) + 1; });
+        chartData = Object.keys(map).map(key => ({ name: key, value: map[key] }));
+    }
+
+    const option = {
+        tooltip: { trigger: 'item' },
+        legend: { bottom: '5%', left: 'center', icon: 'circle', textStyle: { fontSize: 12 } },
+        series: [{
+            name: '物品分布',
+            type: 'pie',
+            radius: ['40%', '70%'],
+            avoidLabelOverlap: true,
+            itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+            label: { show: false },
+            data: chartData
+        }]
+    };
+    myChart.setOption(option);
+    setTimeout(() => myChart.resize(), 100);
 }

@@ -1103,25 +1103,41 @@ async function exportData() {
         photos: allPhotos 
     };
 
-    // 3. 生成文件并触发下载
+    // 3. 生成文件并调起系统分享（让用户自定义路径）
     try {
         const jsonStr = JSON.stringify(data);
         const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `my-life-backup-${Date.now()}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        if (typeof showToast === 'function') showToast('导出成功！请去手机文件管理器中查看');
+        const fileName = `my-life-backup-${Date.now()}.json`;
+        const file = new File([blob], fileName, { type: 'application/json' });
+
+        // 检查是否支持系统分享文件（鸿蒙/安卓 WebView 一般都支持）
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                files: [file],
+                title: '我的生活备份',
+                text: '请选择保存到文件，或发送到微信/网盘'
+            });
+            if (typeof showToast === 'function') showToast('分享成功！');
+        } else {
+            // 兜底方案：如果不支持，退回到传统下载
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('导出成功！请去默认下载目录查看');
+        }
     } catch (err) {
         console.error(err);
-        if (typeof showToast === 'function') showToast('导出失败，数据可能太大', 'error');
+        // 用户取消分享也会进这里，不用报错
+        if (err.name !== 'AbortError') {
+            if (typeof showToast === 'function') showToast('导出失败', 'error');
+        }
     }
 }
-
 // 2. 导入数据弹窗 (支持恢复照片)
 function showImportModal() {
     let overlay = document.getElementById('import-overlay');
@@ -1853,22 +1869,40 @@ function handleEdgeBack() {
     }
     return false;
 }
-// ================= 接管系统级返回键 / 边缘手势 (鸿蒙/安卓) =================
-// 每次启动时，往历史栈压入一个空记录，防止第一步直接退出 App
-history.pushState({ page: 'main' }, '', location.href);
+// ================= 纯前端接管鸿蒙/Android 边缘返回手势 =================
+let _exitTimer = null;
+
+// 核心：一进App就压入一条垫底记录，防止系统直接杀进程
+history.pushState({ shield: true }, '', location.href);
 
 window.addEventListener('popstate', function (e) {
-    // 尝试执行你的返回逻辑（关弹窗、关抽屉、退页面）
-    const handled = handleEdgeBack();
-    
-    if (handled) {
-        // 如果当前页面/弹窗处理了这次返回，立刻补上一个历史记录！
-        // 这样用户继续滑，我们还能接着处理，页面和 App 都不会退出
-        history.pushState({ page: 'main' }, '', location.href);
+    // 1. 立即尝试执行业务返回逻辑（关弹窗、关抽屉、退页面）
+    const isHandled = handleEdgeBack();
+
+    if (isHandled) {
+        // 【情况 A】：成功处理了返回（比如关掉了弹窗/返回上一级）
+        // 立刻补一条新历史记录，保证系统永远觉得还有路可退，防止误杀
+        history.pushState({ shield: true }, '', location.href);
+        // 清空退出计时器
+        if (_exitTimer) { clearTimeout(_exitTimer); _exitTimer = null; }
     } else {
-        // 如果没处理，说明已经到了主页的尽头
-        // 为了防止用户一不小心滑一下就把 App 退出了，我们再压入一个记录
-        // 如果你想在主页滑一下直接退出，可以去掉下面这行代码
-        history.pushState({ page: 'main' }, '', location.href);
+        // 【情况 B】：没处理，说明已经在主页了（无路可退）
+        if (_exitTimer) {
+            // 用户连续滑了两次（或按了两次返回键）
+            clearTimeout(_exitTimer);
+            _exitTimer = null;
+            
+            // 这里千万不能再 pushState 了！
+            // 浏览器已经退到了垫底的那个历史记录上，再退一次系统就会自动关闭 App
+            // 如果你想通过 WebView 主动退出，这里什么都不用写，系统会接管
+        } else {
+            // 用户第一次滑，提示一下，并补一条记录挡住，防止直接退出
+            showToast('再滑一次退出应用');
+            history.pushState({ shield: true }, '', location.href);
+            
+            _exitTimer = setTimeout(() => {
+                _exitTimer = null;
+            }, 2000);
+        }
     }
 });

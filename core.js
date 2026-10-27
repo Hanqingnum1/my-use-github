@@ -1066,12 +1066,9 @@ function generateReadableData() {
 
 // 1. 导出数据主弹窗 (支持导出照片)
 async function exportData() {
-    let overlay = document.getElementById('export-overlay');
+    if (typeof showToast === 'function') showToast('正在打包数据与照片，请稍候...');
     
-    // 如果是第一次点击，需要等待读取照片
-    if (typeof showToast === 'function') showToast('正在打包数据与照片...');
-    
-    // 读取所有照片数据
+    // 1. 读取所有 IndexedDB 照片
     let allPhotos = {};
     try {
         if (typeof PhotoDB !== 'undefined') {
@@ -1092,6 +1089,7 @@ async function exportData() {
         }
     } catch (e) { console.error("读取照片失败", e); }
 
+    // 2. 组装数据
     const data = { 
         items: JSON.parse(localStorage.getItem('myItems') || '[]'), 
         giftRecords: JSON.parse(localStorage.getItem('myGiftRecords') || '[]'), 
@@ -1102,48 +1100,26 @@ async function exportData() {
         lock: JSON.parse(localStorage.getItem('myLock') || '{}'), 
         profile: getProfile(), 
         theme: getTheme(),
-        photos: allPhotos // 核心：把照片数据也放进去
+        photos: allPhotos 
     };
 
-    const jsonStr = JSON.stringify(data);
-
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'export-overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:99999;display:flex;flex-direction:column;padding:20px;box-sizing:border-box;';
-        
-        const title = document.createElement('div');
-        title.innerText = '请长按下方文本框全选复制（含照片，文本较长）';
-        title.style.cssText = 'color:white;font-size:15px;margin-bottom:10px;text-align:center;font-weight:bold;';
-        
-        const textarea = document.createElement('textarea');
-        textarea.id = 'export-textarea';
-        textarea.style.cssText = 'flex:1;width:100%;border-radius:12px;padding:12px;font-size:12px;font-family:monospace;resize:none;line-height:1.5;';
-        
-        const btnGroup = document.createElement('div');
-        btnGroup.style.cssText = 'display:flex;gap:10px;margin-top:15px;';
-        
-        const copyBtn = document.createElement('button');
-        copyBtn.innerText = '一键复制';
-        copyBtn.style.cssText = 'flex:1;padding:14px;background:var(--primary,#d98880);color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
-        copyBtn.onclick = () => {
-            const ta = document.getElementById('export-textarea');
-            ta.select(); ta.setSelectionRange(0, 999999); document.execCommand('copy');
-            if (typeof showToast === 'function') showToast('已复制到剪贴板！');
-        };
-        
-        const closeBtn = document.createElement('button');
-        closeBtn.innerText = '关闭';
-        closeBtn.style.cssText = 'flex:1;padding:14px;background:#555;color:white;border:none;border-radius:12px;font-size:16px;font-weight:bold;';
-        closeBtn.onclick = () => { overlay.style.display = 'none'; };
-        
-        btnGroup.appendChild(copyBtn); btnGroup.appendChild(closeBtn);
-        overlay.appendChild(title); overlay.appendChild(textarea); overlay.appendChild(btnGroup);
-        document.body.appendChild(overlay);
+    // 3. 生成文件并触发下载
+    try {
+        const jsonStr = JSON.stringify(data);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `my-life-backup-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        if (typeof showToast === 'function') showToast('导出成功！请去手机文件管理器中查看');
+    } catch (err) {
+        console.error(err);
+        if (typeof showToast === 'function') showToast('导出失败，数据可能太大', 'error');
     }
-    
-    overlay.style.display = 'flex';
-    document.getElementById('export-textarea').value = jsonStr;
 }
 
 // 2. 导入数据弹窗 (支持恢复照片)
@@ -1215,7 +1191,54 @@ function showImportModal() {
     }
     overlay.style.display = 'flex';
 }
-
+// ================= 新增：读取本地 .json 文件的导入函数 =================
+function importData(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data) {
+                showAlert(T('导入数据'), T('导入会覆盖当前数据，是否继续？'), async () => {
+                    if (data.items) localStorage.setItem('myItems', JSON.stringify(data.items));
+                    if (data.giftRecords) localStorage.setItem('myGiftRecords', JSON.stringify(data.giftRecords));
+                    if (data.importantDates) localStorage.setItem('myImportantDates', JSON.stringify(data.importantDates));
+                    if (data.diaries) localStorage.setItem('myDiaries', JSON.stringify(data.diaries));
+                    if (data.books) localStorage.setItem('myBooks', JSON.stringify(data.books));
+                    if (data.customIcons) localStorage.setItem('myCustomIcons', JSON.stringify(data.customIcons));
+                    if (data.lock) localStorage.setItem('myLock', JSON.stringify(data.lock));
+                    if (data.profile) localStorage.setItem('myProfile', JSON.stringify(data.profile));
+                    if (data.theme) localStorage.setItem('myTheme', JSON.stringify(data.theme));
+                    
+                    // 恢复照片到 IndexedDB
+                    if (data.photos && typeof PhotoDB !== 'undefined') {
+                        if (typeof showToast === 'function') showToast('正在恢复照片，请稍候...');
+                        await PhotoDB.init();
+                        for (let key in data.photos) {
+                            if (data.photos[key]) {
+                                await PhotoDB.saveImageBase64(key, data.photos[key]);
+                            }
+                        }
+                    }
+                    
+                    showToast(T('导入成功！')); 
+                    // 稍微延迟一下再刷新
+                    setTimeout(() => {
+                        window.location.href = window.location.href; 
+                    }, 1000);
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            showToast(T('文件格式错误！'), 'error');
+        } finally {
+            input.value = ''; // 清空 input，允许用户重复选择同一个文件
+        }
+    };
+    reader.readAsText(file);
+}
 function clearAllData() { showAlert(T('清空数据'), T('确定要清空所有数据吗？此操作不可恢复！'), () => { ['myItems','myGiftRecords','myImportantDates','myProfile','myTheme','myDiaries','myBooks','myCustomIcons','myLock'].forEach(k => localStorage.removeItem(k)); showToast(T('已清空')); location.reload(); }); }
 function getLockSettings() { return JSON.parse(localStorage.getItem('myLock')) || { type: '' }; }
 function loadLockSettings() { const l = getLockSettings(); document.querySelectorAll('.lock-check').forEach(el => el.classList.remove('active')); if (l.type) { const el = document.getElementById('lock-' + l.type); if (el) el.classList.add('active'); } }
@@ -1576,9 +1599,10 @@ document.addEventListener('touchstart', (e) => {
     const diaryPanel = document.getElementById('diary-panel');
     if (drawer && drawer.classList.contains('open')) { touchStartX = -1; return; }
     if (diaryPanel && diaryPanel.classList.contains('open')) { touchStartX = -1; return; }
-    const clientX = e.touches[0].clientX; const screenWidth = window.innerWidth;
-    isEdgeSwipe = (clientX <= 30 || clientX >= screenWidth - 30);
-    touchStartX = clientX; touchStartY = e.touches[0].clientY;
+    
+    // ⚠️ 删掉 isEdgeSwipe 的边缘判定，交给系统全局返回处理
+    touchStartX = e.touches[0].clientX; 
+    touchStartY = e.touches[0].clientY;
 }, { passive: true });
 document.addEventListener('touchend', (e) => {
     if (touchStartX === -1) return;
@@ -1772,3 +1796,79 @@ const PhotoDB = {
         });
     }
 };
+
+// ================= 统一处理返回/关闭逻辑 =================
+function handleEdgeBack() {
+    // 1. 关闭各类弹窗
+    if (document.getElementById('confirm-modal').style.display === 'flex') { closeConfirm(); return true; }
+    if (document.getElementById('prompt-modal').style.display === 'flex') { closePrompt(); return true; }
+    if (document.getElementById('alert-modal').style.display === 'flex') { closeAlert(false); return true; }
+    if (document.getElementById('date-picker-modal').style.display === 'flex') { closeDatePicker(); return true; }
+    if (document.getElementById('template-modal').style.display === 'flex') { closeTemplateModal(); return true; }
+    if (document.getElementById('pattern-lock-modal').style.display === 'flex') { closePatternLock(); return true; }
+    if (document.getElementById('crop-overlay').style.display === 'flex') { cancelWallpaper(); return true; }
+
+    // 2. 关闭抽屉和侧边面板
+    if (document.getElementById('side-drawer').classList.contains('open')) { closeDrawer(); return true; }
+    if (document.getElementById('diary-panel').classList.contains('open')) { closeDiaryPanel(); return true; }
+
+    // 3. 列表视图退回
+    if (document.getElementById('page-important-dates').classList.contains('active')) {
+        if (document.getElementById('important-list-view').style.display === 'block') {
+            exitImportantList();
+            return true;
+        }
+    }
+
+    // 4. 跳转页面退回上级
+    const activePage = document.querySelector('.page.active')?.id;
+    if (!activePage || activePage === 'page-home') return false; // 已经是主页了，无路可退
+    
+    const backMap = {
+        'page-add': () => switchPage('page-all-items'),
+        'page-add-gift': () => switchPage('page-gift-record'),
+        'page-gift-detail': () => switchPage('page-gift-record'),
+        'page-event-detail': () => switchPage('page-gift-detail'),
+        'page-add-event': () => switchPage('page-gift-detail'),
+        'page-add-important': () => switchPage('page-important-dates'),
+        'page-important-detail': () => backFromImportantDetail(),
+        'page-book-list': () => switchPage('page-home'),
+        'page-book-view': () => switchPage('page-home'),
+        'page-book-detail': () => switchPage('page-book-list'),
+        'page-item-distribution': () => switchPage('page-all-items'),
+        'page-gift-distribution': () => switchPage('page-gift-record'),
+        'page-diary-list': () => backFromImportantDetail(),
+        'page-diary-view': () => backToDiaryList(),
+        'page-diary-edit': () => cancelDiaryEdit(),
+        'page-profile': () => switchPage('page-home'),
+        'page-theme': () => switchPage('page-home'),
+        'page-backup': () => switchPage('page-home'),
+        'page-lock': () => switchPage('page-home'),
+        'page-about': () => switchPage('page-home')
+    };
+
+    if (backMap[activePage]) {
+        backMap[activePage]();
+        return true;
+    }
+    return false;
+}
+// ================= 接管系统级返回键 / 边缘手势 (鸿蒙/安卓) =================
+// 每次启动时，往历史栈压入一个空记录，防止第一步直接退出 App
+history.pushState({ page: 'main' }, '', location.href);
+
+window.addEventListener('popstate', function (e) {
+    // 尝试执行你的返回逻辑（关弹窗、关抽屉、退页面）
+    const handled = handleEdgeBack();
+    
+    if (handled) {
+        // 如果当前页面/弹窗处理了这次返回，立刻补上一个历史记录！
+        // 这样用户继续滑，我们还能接着处理，页面和 App 都不会退出
+        history.pushState({ page: 'main' }, '', location.href);
+    } else {
+        // 如果没处理，说明已经到了主页的尽头
+        // 为了防止用户一不小心滑一下就把 App 退出了，我们再压入一个记录
+        // 如果你想在主页滑一下直接退出，可以去掉下面这行代码
+        history.pushState({ page: 'main' }, '', location.href);
+    }
+});

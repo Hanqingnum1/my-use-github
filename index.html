@@ -1007,7 +1007,10 @@
     <div class="card">
         <h4 class="section-title">备份与迁移</h4>
         <div class="setting-row setting-clickable" onclick="exportData()"><span>导出全部数据（JSON）</span><span class="arrow-right">›</span></div>
-        <div class="setting-row setting-clickable" onclick="showImportModal()"><span>导入数据 (粘贴 JSON)</span><span class="arrow-right">›</span></div>
+        <!-- 把原来的 onclick="showImportModal()" 删掉，直接绑定到隐藏的 file input 上 -->
+        <div class="setting-row setting-clickable" onclick="document.getElementById('import-file').click()">
+    <span>导入数据 (选择 .json 文件)</span><span class="arrow-right">›</span>
+</div>
         <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(this)">
     </div>
     <div class="card">
